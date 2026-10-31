@@ -1,0 +1,28 @@
+{
+  "name": "anysite-mcp",
+  "version": "0.1.0",
+  "description": "Turn any website into MCP tools for Claude and other AI agents: a real Chrome signed in as you, one profile per site, and shortcuts the agent saves as new tools",
+  "main": "server.js",
+  "type": "module",
+  "bin": {
+    "anysite-mcp": "server.js"
+  },
+  "scripts": {
+    "test": "node selfcheck.js"
+  },
+  "keywords": ["mcp", "model-context-protocol", "browser", "automation", "claude", "playwright", "accessibility", "notebooklm", "gemini"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DwytMCL/anysite-mcp.git"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "files": ["server.js", "sites/", "README.md", "LICENSE"],
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "playwright-core": "^1.64.1",
+    "zod": "^4.6.7"
+  }
+}
