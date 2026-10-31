@@ -1,6 +1,6 @@
 {
   "name": "anysite-mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Turn any website into MCP tools for Claude and other AI agents: a real Chrome signed in as you, one profile per site, and shortcuts the agent saves as new tools",
   "main": "server.js",
   "type": "module",

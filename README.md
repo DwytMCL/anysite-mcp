@@ -1,6 +1,16 @@
 # anysite-mcp
 
+[![npm](https://img.shields.io/npm/v/anysite-mcp)](https://www.npmjs.com/package/anysite-mcp)
+[![license](https://img.shields.io/github/license/DwytMCL/anysite-mcp)](LICENSE)
+[![MCP](https://img.shields.io/badge/MCP-server-blue)](https://modelcontextprotocol.io)
+
 **Turn any website into tools for Claude and other AI agents, signed in as you.**
+
+![Claude looks something up on Wikipedia, saves the steps as a shortcut, and reuses it as a new tool](docs/demo.gif)
+
+```bash
+claude mcp add anysite -- npx -y anysite-mcp
+```
 
 anysite-mcp is an [MCP](https://modelcontextprotocol.io) server that drives a real Chrome on your computer. Every
 site gets its own browser profile that you sign in to once, by hand. The agent then works the site the way a
@@ -8,6 +18,11 @@ screen reader does, by role and name, so small redesigns don't break it. When th
 the steps as a **shortcut**, and that shortcut becomes a new tool it can call in one step next time.
 
 No API keys, no cloud browser, no extra LLM. Your logins stay on your machine.
+
+- **Your accounts, kept apart.** One Chrome profile per site, signed in by hand once. Works with Google sign-in.
+- **Gets faster with use.** The agent turns a job it has figured out into a one-call tool that's there next session.
+- **Survives redesigns.** Elements are found by role and name, not CSS selectors.
+- **Packs for popular sites.** Gemini and NotebookLM are included; a new pack is one file.
 
 ```text
 You:    Ask Gemini to summarise this PDF, then add the summary as a source to my "Thesis" notebook in NotebookLM.
@@ -85,7 +100,7 @@ With no arguments the server offers every site you have signed in to. To pick si
 |---|---|
 | `web_snapshot` | The page's accessibility tree: roles, names and text. Give `role`/`name` to see only part of it. |
 | `web_open` | Go to a URL (absolute or relative to the site) |
-| `web_click`, `web_type`, `web_press` | Act on an element found by role and name, or by visible text |
+| `web_click`, `web_type`, `web_press` | Act on an element found by role and name, or by visible text (add `within: "dialog"` and so on to look only inside one part of the page) |
 | `web_read` | Text of the page or of one element |
 | `web_wait` | Wait, or wait until some text appears |
 | `web_upload`, `web_download` | Give files to a file picker; save a download |

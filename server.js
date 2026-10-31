@@ -116,13 +116,15 @@ const text = s => ({ content: [{ type: 'text', text: clip(s) }] });
 const target = { role: z.string().optional().describe('ARIA role from the snapshot, e.g. button, link, textbox, tab'),
   name: z.string().optional().describe('Accessible name from the snapshot'),
   text: z.string().optional().describe('Visible text, used when role/name do not match'),
-  exact: z.boolean().optional(), nth: z.number().int().optional().describe('Pick the nth match (0-based) when several match') };
+  exact: z.boolean().optional(), nth: z.number().int().optional().describe('Pick the nth match (0-based) when several match'),
+  within: z.string().optional().describe('Only look inside the last element with this role (the topmost dialog, for example), e.g. main, dialog, navigation') };
 const hasTarget = a => a.role || a.name || a.text;
 
-function locate(p, { role, name, text: t, exact, nth }) {
-  const loc = role ? p.getByRole(role, name ? { name, exact } : {})
-    : name ? p.getByLabel(name, { exact }).or(p.getByPlaceholder(name, { exact }))
-    : t ? p.getByText(t, { exact }) : null;
+function locate(p, { role, name, text: t, exact, nth, within }) {
+  const root = within ? p.getByRole(within).last() : p;
+  const loc = role ? root.getByRole(role, name ? { name, exact } : {})
+    : name ? root.getByLabel(name, { exact }).or(root.getByPlaceholder(name, { exact }))
+    : t ? root.getByText(t, { exact }) : null;
   if (!loc) throw new Error('Give role, name or text.');
   return nth === undefined ? loc.first() : loc.nth(nth);
 }
@@ -232,7 +234,7 @@ async function runSteps(site, steps, args) {
 
 // MCP server.
 
-const server = new McpServer({ name: 'anysite', version: '0.1.0' }, {
+const server = new McpServer({ name: 'anysite', version: '0.1.1' }, {
   instructions: 'Use websites through a real Chrome that is signed in as the user; each site has its own browser profile. ' +
     'Call web_snapshot first, then act on elements by role and name from it, and snapshot again after each action. ' +
     'Pass `site` as a site name or a domain: any domain works, not only the ones already set up. ' +
