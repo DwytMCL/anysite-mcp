@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>anysite-mcp Shortcut Library</title>
+<meta name="description" content="Shared shortcuts for anysite-mcp: saved website jobs that become one MCP tool each. Browse them, install with one command, and share your own.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="page">
+
+  <div id="header">
+    <h1><a href="./">anysite-mcp Shortcut Library</a></h1>
+    <p class="tagline">Shared website jobs for <a href="https://github.com/DwytMCL/anysite-mcp">anysite-mcp</a>. Each shortcut becomes one tool your agent can call.</p>
+    <ul id="nav">
+      <li><a href="#browse">Browse</a></li>
+      <li><a href="#how">How it works</a></li>
+      <li><a href="#add">Share a shortcut</a></li>
+      <li><a href="#" id="repo-link">Source on GitHub</a></li>
+    </ul>
+  </div>
+
+  <div id="content">
+
+    <div id="browse">
+      <form id="search-form" onsubmit="return false;">
+        <label for="search">Search:</label>
+        <input type="search" id="search" name="q" placeholder="e.g. trending, wikipedia, search" autocomplete="off">
+        <span id="count"></span>
+      </form>
+
+      <p id="categories"><strong>Site:</strong> <span id="category-list"></span></p>
+
+      <p id="site-install" class="install-all" hidden>
+        Add every shortcut for <strong id="site-install-name"></strong>:
+        <code id="site-install-cmd"></code>
+        <button type="button" class="copy-cmd" id="site-install-copy">Copy</button>
+      </p>
+
+      <table id="results">
+        <thead>
+          <tr>
+            <th class="col-title">Shortcut</th>
+            <th class="col-keys">Install</th>
+            <th class="col-platform">Site</th>
+          </tr>
+        </thead>
+        <tbody id="results-body">
+          <tr><td colspan="3" class="empty">Loading&hellip;</td></tr>
+        </tbody>
+      </table>
+      <noscript><p class="notice">This page needs JavaScript to list shortcuts. You can read the files in <a href="https://github.com/DwytMCL/anysite-mcp/tree/main/library">library/</a> directly.</p></noscript>
+    </div>
+
+    <div id="how">
+      <h2>How it works</h2>
+      <ol>
+        <li>Add anysite-mcp to your agent once, for example in Claude Code:
+          <code>claude mcp add anysite -- npx -y anysite-mcp</code></li>
+        <li>Add a shortcut from this page with its command, e.g.
+          <code>npx -y anysite-mcp add github.com/trending</code>. Leave off <code>/name</code> to add every shortcut for that site.</li>
+        <li>Restart your agent. The shortcut is now a tool named <code>&lt;site&gt;_&lt;name&gt;</code>, such as <code>github_com_trending</code>.</li>
+      </ol>
+      <p>A shortcut is only a list of steps for the <code>web_*</code> tools (open, click, type, read, extract and so on).
+      No code runs, and it can't do anything the agent couldn't already do on that site. Read the steps before you add one all the same.
+      Already have a shortcut with that name? Add <code>--force</code> to replace it.</p>
+    </div>
+
+    <div id="add">
+      <h2>Share a shortcut</h2>
+      <p>Saved a shortcut that works? Ask your agent for its JSON with
+      <code>web_list_shortcuts</code> (give it <code>site</code> and <code>name</code>), paste it below, and this page checks it
+      and turns it into a pre-filled GitHub issue or a pull request to <code>library/&lt;site&gt;.json</code>.</p>
+
+      <form id="add-form">
+        <table class="form-table">
+          <tr>
+            <th><label for="f-site">Site <span class="req">*</span></label></th>
+            <td>
+              <input type="text" id="f-site" name="site" maxlength="100" required placeholder="github.com" list="site-list" autocomplete="off">
+              <datalist id="site-list"></datalist>
+              <div class="hint">The domain the shortcut runs on, as you passed it to anysite-mcp.</div>
+            </td>
+          </tr>
+          <tr>
+            <th><label for="f-json">Shortcut JSON <span class="req">*</span></label></th>
+            <td>
+              <textarea id="f-json" name="json" rows="12" required spellcheck="false" placeholder='{
+  "trending": {
+    "description": "Trending GitHub repositories today",
+    "params": { "language": { "description": "e.g. rust", "optional": true } },
+    "steps": [
+      { "action": "open", "url": "https://github.com/trending/{{language}}" },
+      { "action": "extract", "role": "article", "limit": 25 }
+    ]
+  }
+}'></textarea>
+              <div class="hint">One or more shortcuts as <code>{ "name": { description, params, steps } }</code>, exactly as <code>web_list_shortcuts</code> returns them.</div>
+            </td>
+          </tr>
+          <tr>
+            <th></th>
+            <td>
+              <label class="check"><input type="checkbox" id="f-private" required> It has no personal data (names, emails, account IDs in URLs).</label>
+            </td>
+          </tr>
+          <tr>
+            <th></th>
+            <td><button type="submit">Check and prepare</button></td>
+          </tr>
+        </table>
+      </form>
+
+      <div id="form-errors" class="error-box" hidden></div>
+
+      <div id="output" hidden>
+        <h3>Ready to share</h3>
+        <p id="output-summary"></p>
+        <pre id="json-output"></pre>
+        <p>
+          <button type="button" id="copy-btn">Copy JSON</button>
+          <a id="issue-link" class="button" href="#" target="_blank" rel="noopener">Open a GitHub issue</a>
+          <a id="pr-link" class="button" href="#" target="_blank" rel="noopener">Propose a pull request</a>
+          <span id="copy-status"></span>
+        </p>
+        <p class="hint" id="pr-hint"></p>
+      </div>
+    </div>
+
+  </div>
+
+  <div id="footer">
+    <p>anysite-mcp is MIT licensed. Shortcuts are contributed by the community; read them before you use them. <a href="library/index.json">All shortcuts (JSON)</a></p>
+  </div>
+
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

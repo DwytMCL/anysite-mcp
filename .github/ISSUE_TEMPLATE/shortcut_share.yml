@@ -1,0 +1,35 @@
+name: Share a shortcut
+description: Add shortcuts to the shared library (library/<site>.json)
+title: "Shortcut: "
+labels: [shortcut]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The [Shortcut Library page](https://dwytmcl.github.io/anysite-mcp/#add) checks your JSON and fills this in for you.
+        Get the JSON from your agent with `web_list_shortcuts` (give it `site` and `name`).
+  - type: input
+    id: site
+    attributes:
+      label: Site
+      placeholder: github.com
+    validations:
+      required: true
+  - type: textarea
+    id: shortcuts
+    attributes:
+      label: Shortcuts
+      description: 'One or more shortcuts as { "name": { description, params, steps } }.'
+      render: json
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: It has no personal data (names, emails, account IDs in URLs).
+          required: true
+        - label: It finds elements by role and name, not by ref.
+          required: true
+        - label: I ran it, or `npx anysite-mcp doctor <site>` passes.
