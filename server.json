@@ -3,17 +3,30 @@
   "name": "io.github.DwytMCL/anysite-mcp",
   "title": "anysite",
   "description": "Any website as MCP tools: a real Chrome signed in as you, and shortcuts the agent saves as tools.",
-  "repository": { "url": "https://github.com/DwytMCL/anysite-mcp", "source": "github" },
-  "version": "0.2.0",
+  "repository": {
+    "url": "https://github.com/DwytMCL/anysite-mcp",
+    "source": "github"
+  },
+  "version": "0.3.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "anysite-mcp",
-      "version": "0.2.0",
-      "transport": { "type": "stdio" },
+      "version": "0.3.0",
+      "transport": {
+        "type": "stdio"
+      },
       "environmentVariables": [
-        { "name": "ANYSITE_HEADLESS", "description": "Set to 1 to run Chrome without a window (sign-in still opens one)", "isRequired": false },
-        { "name": "ANYSITE_CHROME", "description": "Path to the Chrome or Chromium binary", "isRequired": false }
+        {
+          "name": "ANYSITE_HEADLESS",
+          "description": "Set to 1 to run Chrome without a window (sign-in still opens one)",
+          "isRequired": false
+        },
+        {
+          "name": "ANYSITE_CHROME",
+          "description": "Path to the Chrome or Chromium binary",
+          "isRequired": false
+        }
       ]
     }
   ]

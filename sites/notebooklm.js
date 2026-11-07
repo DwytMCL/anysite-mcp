@@ -38,6 +38,7 @@ export default ({ z, kit }) => {
       },
 
       create_notebook: {
+        writes: true,
         description: 'Create a new empty NotebookLM notebook, optionally titled. Returns its URL.',
         input: { title: z.string().optional() },
         async run(p, { title }) {
@@ -103,6 +104,7 @@ export default ({ z, kit }) => {
       },
 
       add_source: {
+        writes: true,
         description: 'Add sources to a NotebookLM notebook: website/YouTube URLs, pasted text, and/or local files.',
         input: { notebook: notebookArg, urls: z.array(z.string()).optional(), text: z.string().optional(),
           files: z.array(z.string()).optional() },

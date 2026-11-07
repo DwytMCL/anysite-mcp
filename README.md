@@ -26,8 +26,12 @@ No API keys, no cloud browser, no extra LLM. Your logins stay on your machine.
 - **Your accounts, kept apart.** One Chrome profile per site, signed in by hand once. Works with Google sign-in.
 - **Gets faster with use.** The agent turns a job it has figured out into a one-call tool that's there next session.
   Shortcuts are tested before they're saved and fail loudly if a page stops looking right.
+- **Repairs itself.** When a site renames a button or swaps it for a link, the shortcut finds the new one and
+  updates itself. No extra LLM needed.
+- **Learns by watching.** `anysite-mcp record github.com my_job`, do the job by hand, and it's a tool.
+- **You set the limits.** Per site: read-only, ask before sending/buying/deleting, and which domains it may open.
 - **Light on tokens.** After each action the agent sees only what changed on the page, and points at elements by ref.
-- **Survives redesigns.** Elements are found by role and name, not CSS selectors.
+  `web_extract` turns lists and tables into JSON.
 - **Packs for popular sites.** Gemini and NotebookLM are included; a new pack is one file.
 
 ```text
@@ -64,8 +68,11 @@ Most browser tools make the agent rediscover a site every session. anysite-mcp k
 |---|---|---|---|
 | Signed in as you | Yes, a separate profile per site, signed in by hand once | One browser for everything (its extension can use your Chrome) | Usually cloud or fresh browsers |
 | Google sign-in (Gemini, NotebookLM, Gmail) | Works: sign-in happens in a plain, non-automated window | Often refused as an "insecure browser" | Often refused |
-| Gets faster with use | The agent saves working steps as new tools | No | No |
-| Site packs | NotebookLM and Gemini included; add your own in one file | No | No |
+| Gets faster with use | The agent saves working steps as new tools | No | Some cache actions |
+| Survives redesigns | Saved steps repair themselves | No | With an LLM call |
+| Learn by watching you | `record` mode | No | No |
+| Per-site permissions | Read-only, confirm, allowed domains | No | No |
+| Site packs and shared shortcuts | Gemini, NotebookLM, a shortcut library | No | No |
 | Needs an LLM API key | No | No | Yes |
 
 Profiles are kept apart on purpose. Copying a signed-in profile so two browsers share one session gets that
@@ -109,13 +116,15 @@ With no arguments the server offers every site you have signed in to. To pick si
 |---|---|
 | `web_snapshot` | The page's accessibility tree: roles, names, text, and a ref per element (`[ref=e12]`). Give `ref` or `role`/`name` to see only part of it, `depth` for an outline. |
 | `web_open` | Go to a URL (absolute or relative to the site) |
-| `web_click`, `web_type`, `web_press` | Act on an element found by `ref`, by role and name, or by visible text (add `within: "dialog"` and so on to look only inside one part of the page). Returns only what changed; `show: "full"` for the whole page. |
+| `web_click`, `web_type`, `web_select`, `web_press` | Act on an element found by `ref`, by role and name, or by visible text (add `within: "dialog"` and so on to look only inside one part of the page). Returns only what changed; `show: "full"` for the whole page. |
 | `web_read` | Text of the page or of one element |
+| `web_extract` | Rows as JSON, one per matching element (`role: "row"`, `"listitem"`, `"article"`…), with optional `fields` looked up in each |
 | `web_wait` | Wait, or wait until some text appears |
 | `web_upload`, `web_download` | Give files to a file picker; save a download |
 | `web_screenshot` | PNG of the page, for when the tree is not enough |
 | `web_login` | Open a plain window so you can sign in |
 | `web_save_shortcut`, `web_list_shortcuts`, `web_delete_shortcut` | Turn a working sequence into a tool named `<site>_<name>` (tried once before it's saved) |
+| `web_record` | Watch the user do a job in the site's window and save it as a shortcut |
 
 **Packs included**
 
@@ -144,8 +153,29 @@ run once with `test_args` (set `verify: false` for steps that must not happen tw
 }
 ```
 
-If a site changes and a step fails, the error says which step and why, and the agent can redo the job with the
-`web_*` tools and save the shortcut again.
+Params can also be `{ "description", "type": "number" | "boolean", "optional", "default" }`.
+
+**When a site changes**, a step whose element is gone is repaired before it fails: first with other ways to find it
+that were noted when the shortcut was saved (its label, its text), then with the closest element of a similar role
+on the page ("Search products" finds "Product search"; a button that became a link is still found). Only a single
+clear match counts. The shortcut file is updated and the agent is told what changed. If nothing fits, the error
+says which step and why, and the agent can redo the job and save the shortcut again.
+
+**Record a shortcut** by doing the job yourself:
+
+```bash
+npx -y anysite-mcp record github.com star_repo
+```
+
+Chrome opens on the site; click and type as usual, then press Enter in the terminal. Each typed value becomes a
+parameter, with what you typed as its default. The agent can do the same with `web_record`.
+
+**Check your shortcuts** with `npx -y anysite-mcp doctor`. It follows each one while its steps only open and read
+pages, checks that the element of the first step that would act is there, and repairs what it can. It never clicks
+or types.
+
+**Shared shortcuts** live in [`library/`](library/). `npx -y anysite-mcp add github.com` adds them; send yours in a
+pull request.
 
 ## Write a pack
 
@@ -191,17 +221,38 @@ Settings (environment variables):
 | `ANYSITE_CHROME_ARGS` | Extra Chrome flags, e.g. `--no-sandbox` when running as root in a container |
 | `ANYSITE_DOWNLOADS` | Where downloads go (default `~/Downloads/anysite`) |
 
-## Safety
+## Permissions and safety
 
-The agent acts as you on the sites you sign in to. Only sign in to sites you are happy for it to use, and keep an
-eye on anything that sends, buys or deletes. Profiles hold your cookies: never share or commit
-`~/.anysite-mcp/profiles`.
+The agent acts as you on the sites you sign in to. Each site can be limited, and only you can change the limits
+(the agent has no tool for it):
+
+```bash
+npx -y anysite-mcp permissions mail.google.com --read-only     # no sending, deleting, posting or uploading
+npx -y anysite-mcp permissions github.com --confirm            # ask me first
+npx -y anysite-mcp permissions github.com --allow github.com,githubusercontent.com
+npx -y anysite-mcp permissions github.com                      # show the current settings
+```
+
+- **Read-only** judges each click by what the element does. Links only open pages, so they're allowed, unless the
+  address logs out, deletes or unsubscribes. Buttons that submit a POST form are blocked whatever they're called.
+  Other buttons are blocked when labelled like send, post, buy, pay, delete, remove, reply, share and so on. Enter
+  in a field is allowed when it submits a GET form (searches do) or, outside a form, when the field is a search box.
+  Uploads and pack tools that change things are blocked too.
+- **Confirm** asks you in your MCP client before those same actions. Clients that can't ask make the action fail.
+- **Allowed domains**: `web_open` only goes to the site's own domain (`gemini.google.com` may open any
+  `google.com` page) unless you allow more. This keeps a page from steering the agent to another site with this
+  profile's cookies.
+
+These are guard rails, not a sandbox: a button that saves something through script, with a plain label like "Go",
+can get past them, so still only sign in where you're happy
+for the agent to act. Settings live in `~/.anysite-mcp/settings.json`. Profiles hold your cookies: never share or
+commit `~/.anysite-mcp/profiles`.
 
 ## FAQ
 
 **Is it safe to let an agent use my accounts?** It can do anything you can do on the sites you sign in to, so only
 sign in to sites you're happy for it to use. Each site has its own profile, so it never sees your other logins.
-Per-site read-only mode and confirm-before-sending are coming next.
+Use `anysite-mcp permissions` to make a site read-only or to have it ask you first.
 
 **Will a site ban me for this?** anysite-mcp uses a normal Chrome at human speed, and signs in by hand. Still, read
 the terms of the sites you automate, and don't use it for bulk scraping.
@@ -216,7 +267,7 @@ in two browsers at once, which logs you out everywhere. One profile per site avo
 
 ```bash
 npm install
-npm test   # headless self-check against a local test page: snapshots, refs, shortcuts
+npm test   # headless self-check against a local test shop: refs, shortcuts, self-repair, permissions, record
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). New site packs are especially welcome.

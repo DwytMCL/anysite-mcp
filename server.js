@@ -13,6 +13,9 @@ import { chromium } from 'playwright-core';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
+import { checkRole, closest, describe, elements } from './lib/heal.js';
+import { baseDomain, hostAllowed, readSettings, RISKY, RISKY_HREF, SEARCHY, writeSiteSettings } from './lib/permissions.js';
+import { addEvent, parametrize, recorderScript } from './lib/recorder.js';
 
 const HOME = process.env.ANYSITE_HOME || join(homedir(), '.anysite-mcp');
 const DOWNLOADS = process.env.ANYSITE_DOWNLOADS || join(homedir(), 'Downloads', 'anysite');
@@ -134,14 +137,17 @@ const hasTarget = a => a.ref || a.role || a.name || a.text;
 const show = z.enum(['changes', 'full', 'none']).optional()
   .describe('What to return afterwards: only what changed on the page (default), the full snapshot, or nothing');
 
-function locate(p, { ref, role, name, text: t, exact, nth, within }) {
+// `all` returns every match instead of the first (or nth).
+function locate(p, { ref, role, name, text: t, exact, nth, within }, all = false) {
   if (ref) return p.getByRef(ref.replace(/^\[?(ref=)?|\]$/g, ''));
+  checkRole(role);
+  checkRole(within, 'within role');
   const root = within ? p.getByRole(within).last() : p;
   const loc = role ? root.getByRole(role, name ? { name, exact } : {})
     : name ? root.getByLabel(name, { exact }).or(root.getByPlaceholder(name, { exact }))
     : t ? root.getByText(t, { exact }) : null;
   if (!loc) throw new Error('Give ref, role, name or text.');
-  return nth === undefined ? loc.first() : loc.nth(nth);
+  return all ? loc : nth === undefined ? loc.first() : loc.nth(nth);
 }
 
 // The lines of `after` that are new since `before`, with their parent lines for context. Refs stay the same
@@ -221,26 +227,167 @@ const kit = {
   },
 };
 
+// Per-site permissions (lib/permissions.js). Checked by the page actions, so shortcuts obey them too.
+const SETTINGS = join(HOME, 'settings.json');
+const perms = site => ({ read_only: false, confirm: false, ...readSettings(SETTINGS).sites?.[site.name] });
+const allowedDomains = site => perms(site).allowed_domains || [baseDomain(new URL(site.url).hostname)];
+
+// Ask the user through the MCP client. Clients that can't ask make the action fail rather than go ahead.
+async function confirmAction(site, what) {
+  if (!server.server.getClientCapabilities()?.elicitation)
+    throw new Error(`${site.name} is set to ask the user before the agent can ${what}, and this MCP client can't ask. ` +
+      `Ask the user to do it by hand, or to run: anysite-mcp permissions ${site.name} --no-confirm`);
+  const r = await server.server.elicitInput({ message: `Let the agent ${what} on ${site.name}?`,
+    requestedSchema: { type: 'object', properties: {} } });
+  if (r.action !== 'accept') throw new Error(`The user said no to: ${what}. Don't try another way.`);
+}
+
+// Stop or ask before something that changes things (`what`, e.g. 'click "Send"'), per the site's settings.
+async function permit(site, what) {
+  const { read_only, confirm } = perms(site);
+  if (read_only) throw new Error(`${site.name} is read-only, so the agent can't ${what}. ` +
+    `The user can change that with: anysite-mcp permissions ${site.name} --read-write`);
+  if (confirm) await confirmAction(site, what);
+}
+
+// What activating an element would do, judged from the element itself rather than only its words: a real link
+// just opens a page (unless its address logs out, deletes and the like); a button that submits a POST form changes
+// something whatever it is called; other buttons go by their label. Enter in a field submits its form, or, outside a
+// form, counts as a search only in fields labelled like one.
+const effectOf = (loc, enter = false) => loc.evaluate((e, enter) => {
+  const el = enter ? e : e.closest('a[href], button, input, select, textarea, summary, [role]') || e;
+  const label = (el.getAttribute('aria-label') || el.getAttribute('placeholder') || el.innerText || el.value ||
+    el.getAttribute('title') || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+  const form = el.form || el.closest('form');
+  const method = form ? (form.getAttribute('method') || 'get').toLowerCase() : null;
+  const href = el.tagName === 'A' ? el.getAttribute('href') || '' : '';
+  const submits = !!form && (enter || el.type === 'submit' || el.type === 'image' || (el.tagName === 'BUTTON' && !el.getAttribute('type')));
+  return { label, link: !!href && !/^\s*(javascript:|#)/i.test(href), href: el.href || '', submits, post: submits && method !== 'get' };
+}, enter).catch(() => ({ label: '', link: false, href: '', submits: false, post: false }));
+
+async function permitClick(site, loc, a = {}) {
+  const fx = await effectOf(loc);
+  const label = a.name || a.text || fx.label;
+  const risky = fx.link ? RISKY_HREF.test(fx.href) : fx.post || RISKY.test(label);
+  if (risky) await permit(site, `click "${label.slice(0, 60)}"`);
+}
+async function permitEnter(site, loc, a = {}) {
+  const fx = await effectOf(loc, true);
+  const label = a.name || a.text || fx.label;
+  const risky = fx.submits ? fx.post : !(a.role === 'searchbox' || SEARCHY.test(label));
+  if (risky) await permit(site, `submit "${label.slice(0, 60)}"`);
+}
+
+// Clicks and Enter can start loading a new page a moment later. If one starts, wait for it to load, so the next
+// step doesn't read the old page or a blank one.
+async function settled(p, fn, ms = 800) {
+  let navigated = false;
+  const seen = f => { if (f === p.mainFrame()) navigated = true; };
+  p.on('framenavigated', seen);
+  try {
+    await fn();
+    await sleep(ms);
+  } finally {
+    p.off('framenavigated', seen);
+  }
+  if (navigated) {
+    await p.waitForLoadState('load', { timeout: 20000 }).catch(() => {});
+    await p.waitForLoadState('networkidle', { timeout: 3000 }).catch(() => {});
+  }
+}
+
+// A field of an extract row: the first match inside the row that has something to give (an icon link with no text
+// is skipped in favour of the titled link after it), unless nth picks one.
+async function fieldValue(row, f, attr) {
+  const read = async loc => attr ? loc.getAttribute(attr) : (await loc.innerText()).replace(/\s+/g, ' ').trim();
+  if (!hasTarget(f)) return read(row);
+  const matches = locate(row, f, true);
+  if (f.nth !== undefined) return await matches.nth(f.nth).count() ? read(matches.nth(f.nth)) : null;
+  const n = await matches.count();
+  let firstValue = null;
+  for (let i = 0; i < n; i++) {
+    const v = await read(matches.nth(i)).catch(() => null);
+    if (v && (attr || v.trim())) {
+      if (attr) {
+        // For an attribute, still prefer an element that has a name: the titled link, not the thumbnail.
+        const named = (await matches.nth(i).innerText().catch(() => '')).trim() || await matches.nth(i).getAttribute('aria-label');
+        if (named) return v;
+        firstValue ??= v;
+      } else return v;
+    }
+  }
+  return firstValue ?? (n ? '' : null);
+}
+
 // Page actions: each is a web_* tool and a step a shortcut can use. Each returns text.
 const actions = {
   snapshot: (p, a, s) => snapshot(s, p, a),
-  open: async (p, { url, show: m = 'full' }, s) => { await p.goto(url ? new URL(url, s.url).href : s.url); return after(s, p, m); },
-  click: async (p, { show: m, ...a }, s) => { await activate(locate(p, a)); await sleep(800); return after(s, p, m); },
-  type: async (p, { value, submit, show: m, ...a }, s) => {
-    const loc = locate(p, a);
-    await loc.fill(value, { timeout: 10000 });
-    if (submit) await loc.press('Enter');
-    await sleep(800);
+  open: async (p, { url, show: m = 'full' }, s) => {
+    const to = new URL(url || s.url, s.url);
+    const domains = allowedDomains(s);
+    if (!hostAllowed(to.hostname, domains)) throw new Error(`${to.hostname} is outside the domains allowed for ` +
+      `${s.name} (${domains.join(', ')}). Use it as a site of its own (site: "${to.hostname}"), or the user can ` +
+      `allow it with: anysite-mcp permissions ${s.name} --allow ${baseDomain(to.hostname)}`);
+    await p.goto(to.href);
     return after(s, p, m);
   },
-  press: async (p, { key, show: m }, s) => { await p.keyboard.press(key); await sleep(500); return after(s, p, m); },
+  click: async (p, { show: m, ...a }, s) => {
+    const loc = locate(p, a);
+    await permitClick(s, loc, a);
+    await settled(p, () => activate(loc));
+    return after(s, p, m);
+  },
+  type: async (p, { value, submit, show: m, ...a }, s) => {
+    const loc = locate(p, a);
+    if (submit) await permitEnter(s, loc, a);
+    await loc.fill(value, { timeout: 10000 });
+    await settled(p, () => submit && loc.press('Enter'));
+    return after(s, p, m);
+  },
+  select: async (p, { value, show: m, ...a }, s) => {
+    await settled(p, () => locate(p, a).selectOption(value, { timeout: 10000 }), 500);
+    return after(s, p, m);
+  },
+  press: async (p, { key, show: m }, s) => {
+    if (/(^|\+)Enter$/.test(key)) await permitEnter(s, p.locator(':focus'));
+    await settled(p, () => p.keyboard.press(key), 500);
+    return after(s, p, m);
+  },
   upload: async (p, { paths, show: m, ...a }, s) => {
-    const [chooser] = await Promise.all([p.waitForEvent('filechooser', { timeout: 10000 }), locate(p, a).click()]);
+    const loc = locate(p, a);
+    await permit(s, `upload files with "${(a.name || a.text || (await effectOf(loc)).label).slice(0, 60)}"`);
+    const [chooser] = await Promise.all([p.waitForEvent('filechooser', { timeout: 10000 }), loc.click()]);
     await chooser.setFiles(paths);
     await sleep(1500);
     return after(s, p, m);
   },
   read: async (p, a) => hasTarget(a) ? locate(p, a).innerText() : p.locator('body').innerText(),
+  // Rows as JSON: one per element matching the target, with `fields` looked up inside each.
+  extract: async (p, { fields, limit = 50, ...a }) => {
+    for (const f of Object.values(fields || {})) checkRole(f.role, 'field role');
+    const items = locate(p, a, true);
+    await items.first().waitFor({ timeout: 5000 }).catch(() => {}); // lists often arrive just after the page
+    const rows = [];
+    for (let i = 0, n = Math.min(await items.count(), limit); i < n; i++) {
+      const it = items.nth(i);
+      if (!fields) {
+        rows.push(await it.evaluate(e => {
+          const links = e.matches('a[href]') ? [e] : [...e.querySelectorAll('a[href]')];
+          const link = links.find(l => l.innerText.trim()) || links[0]; // the titled link, not the thumbnail
+          return { text: e.innerText.replace(/\s+/g, ' ').trim(), ...(link ? { link: link.href } : {}) };
+        }));
+        continue;
+      }
+      const row = {};
+      for (const [k, { attr, ...f }] of Object.entries(fields)) row[k] = await fieldValue(it, f, attr);
+      rows.push(row);
+    }
+    const json = JSON.stringify(rows, null, 2);
+    if (!rows.length) return `${json}\n\nNote: nothing matched ${describe(a)}. Check the page with web_snapshot.`;
+    const empty = Object.keys(fields || {}).filter(k => rows.every(r => r[k] === null || r[k] === ''));
+    return empty.length ? `${json}\n\nNote: ${empty.map(k => `"${k}"`).join(', ')} came back empty on every row. ` +
+      'Check its role and name with web_snapshot on one row (give ref or role/name).' : json;
+  },
   wait: async (p, { seconds, until_text, show: m }, s) => {
     if (until_text) await p.getByText(until_text).first().waitFor({ timeout: seconds * 1000 }).catch(() => {
       throw new Error(`"${until_text}" did not appear within ${seconds} s.`);
@@ -257,55 +404,241 @@ const actions = {
     return `Saved ${file}`;
   },
 };
+const stepNames = Object.keys(actions);
 
-// Saved shortcuts: { name: { description, params: { param: description }, steps: [{ action, ...args }] } }.
-// "{{param}}" in any step string is replaced by the argument. A step's "expect" is text that must be on the
-// page after it, so a shortcut fails loudly instead of returning the wrong page.
+// Saved shortcuts: { name: { description, params, steps: [{ action, ...args, expect?, fallbacks? }] } }.
+// A param is a description, or { description, type: string|number|boolean, optional, default }. "{{param}}" in any
+// step string is replaced by its value. "expect" is text that must be on the page after the step. "fallbacks" are
+// other ways to find the step's element, used when the site changes (lib/heal.js).
 const readShortcuts = site => existsSync(site.shortcutFile) ? JSON.parse(readFileSync(site.shortcutFile, 'utf8')) : {};
+function writeShortcuts(site, all) {
+  mkdirSync(join(HOME, 'sites'), { recursive: true });
+  writeFileSync(site.shortcutFile, JSON.stringify(all, null, 2) + '\n');
+}
+const updateShortcut = (site, name, steps) => {
+  const all = readShortcuts(site);
+  if (all[name]) writeShortcuts(site, { ...all, [name]: { ...all[name], steps } });
+};
 
 // Problems that would only show when the shortcut runs: unknown actions, refs, undeclared params.
 function checkShortcut({ params = {}, steps }) {
+  if (!Array.isArray(steps) || !steps.length) throw new Error('A shortcut needs a list of steps.');
   steps.forEach(({ action, ...a }, i) => {
     const at = `Step ${i + 1} (${action})`;
     if (!actions[action]) throw new Error(`${at}: use one of ${stepNames.join(', ')}.`);
     if (a.ref) throw new Error(`${at}: refs like "${a.ref}" only last until the page changes. Use role and name instead.`);
+    try {
+      checkRole(a.role);
+      checkRole(a.within, 'within role');
+      for (const f of Object.values(a.fields || {})) checkRole(f?.role, 'field role');
+    } catch (e) { throw new Error(`${at}: ${e.message}`); }
     for (const [, k] of JSON.stringify(a).matchAll(/\{\{(\w+)\}\}/g))
       if (!(k in params)) throw new Error(`${at} uses {{${k}}}, which is not in params.`);
   });
 }
 
-async function runSteps(site, steps, args) {
-  const fill = v => typeof v === 'string' ? v.replace(/\{\{(\w+)\}\}/g, (_, k) => {
-    if (args[k] === undefined) throw new Error(`missing argument "${k}"`);
-    return args[k];
-  }) : Array.isArray(v) ? v.map(fill) : v;
+const paramSpec = d => typeof d === 'string' ? { description: d } : d || {};
+function fillFrom(params, args) {
+  const value = k => {
+    const d = paramSpec(params[k]);
+    const v = args[k] ?? d.default;
+    if (v !== undefined) return String(v);
+    if (d.optional) return '';
+    throw new Error(`missing argument "${k}"`);
+  };
+  const fill = v => typeof v === 'string' ? v.replace(/\{\{(\w+)\}\}/g, (_, k) => value(k))
+    : Array.isArray(v) ? v.map(fill)
+    : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, fill(x)])) : v;
+  return fill;
+}
+
+const TARGETED = new Set(['click', 'type', 'select', 'upload', 'read', 'download', 'extract']);
+const TARGET_KEYS = ['ref', 'role', 'name', 'text', 'exact', 'nth'];
+const onlyTarget = a => Object.fromEntries(TARGET_KEYS.filter(k => a[k] !== undefined).map(k => [k, a[k]]));
+const exists = (loc, ms, state = 'attached') => loc.waitFor({ state, timeout: ms }).then(() => true, () => false);
+// Elements the step acts on must be visible; ones it only reads may be anywhere in the page.
+const INTERACTIVE = new Set(['click', 'type', 'select', 'upload', 'download']);
+
+// null if the step's element is there; else a replacement target: a saved fallback, or the closest match.
+async function findOrHeal(p, a, fallbacks = [], action = 'read', wait = 5000) {
+  if (await exists(locate(p, a), wait, INTERACTIVE.has(action) ? 'visible' : 'attached')) return null;
+  for (const f of fallbacks) if (await exists(locate(p, { ...f, within: a.within }), 500)) return f;
+  const el = closest(a, elements(await p.ariaSnapshot({ mode: 'ai' })));
+  const fix = el && { role: el.role, name: el.name, exact: true };
+  if (fix && await exists(locate(p, { ...fix, within: a.within }), 1000)) return fix;
+  throw new Error(`no element matches ${describe(a)}${a.within ? ` inside ${a.within}` : ''}, and nothing on the page is close enough to use instead`);
+}
+
+// Other ways to find an element, saved with the step so it can be found again after a redesign.
+async function fallbacksFor(p, a) {
+  const info = await locate(p, a).evaluate(e => ({
+    label: e.getAttribute('aria-label') || e.getAttribute('placeholder') || e.getAttribute('title') || '',
+    text: (e.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 80) }), undefined, { timeout: 2000 }).catch(() => null);
+  if (!info) return [];
+  return [info.label && info.label !== a.name && { name: info.label },
+    info.text && info.text !== a.name && info.text !== a.text && { text: info.text }].filter(Boolean);
+}
+
+// Find a targeted step's element, healing the step (in `step`, which the caller may save) if it moved.
+async function resolveStep(p, step, a, repairs, i, wait) {
+  const { action, expect, fallbacks, ...raw } = step;
+  if (!TARGETED.has(action) || !hasTarget(a) || a.ref) return a;
+  const fix = await findOrHeal(p, a, fallbacks, action, wait);
+  if (!fix) return a;
+  repairs.push(`step ${i + 1}: ${describe(a)} is now ${describe(fix)}`);
+  if (!/\{\{/.test(JSON.stringify(onlyTarget(raw)))) { // a target built from params can't be stored
+    for (const k of TARGET_KEYS) delete step[k];
+    Object.assign(step, fix, { fallbacks: [onlyTarget(raw), ...(fallbacks || [])].slice(0, 3) });
+  }
+  return { ...Object.fromEntries(Object.entries(a).filter(([k]) => !TARGET_KEYS.includes(k))), ...fix };
+}
+
+// Run a shortcut. Returns its text and its steps, which differ from sc.steps if a step was healed or `learn`
+// recorded fallbacks for them.
+async function runSteps(site, sc, args, { learn = false } = {}) {
+  const fill = fillFrom(sc.params || {}, args);
   const p = await getPage(site);
-  const reads = [];
+  const steps = sc.steps.map(s => ({ ...s }));
+  const reads = [], repairs = [];
   let last = '';
-  for (const [i, { action, expect, ...a }] of steps.entries()) {
+  for (const [i, step] of steps.entries()) {
+    const { action, expect, fallbacks, ...raw } = step;
     try {
       if (!actions[action]) throw new Error(`unknown action "${action}"`);
-      last = await actions[action](p, { show: 'none', ...Object.fromEntries(Object.entries(a).map(([k, v]) => [k, fill(v)])) }, site);
+      const a = await resolveStep(p, step, fill(raw), repairs, i);
+      if (learn && TARGETED.has(action) && hasTarget(a) && !fallbacks && !/\{\{/.test(JSON.stringify(onlyTarget(raw)))) {
+        const fb = await fallbacksFor(p, a);
+        if (fb.length) step.fallbacks = fb;
+      }
+      try {
+        last = await actions[action](p, { show: 'none', ...a }, site);
+      } catch (e) {
+        // Many pages replace elements with script just after loading (a search box that becomes a combobox), so an
+        // element found a moment ago can be gone by the time it is used. Look for it again, repairing if need be.
+        if (!TARGETED.has(action) || !hasTarget(a) || a.ref || !/timeout|detached|not attached|not visible|no element/i.test(e.message)) throw e;
+        await p.waitForLoadState('networkidle', { timeout: 3000 }).catch(() => {});
+        const again = await resolveStep(p, step, fill(raw), repairs, i, 1500);
+        last = await actions[action](p, { show: 'none', ...again }, site);
+      }
       if (expect) await p.getByText(fill(expect)).first().waitFor({ timeout: 10000 }).catch(() => {
         throw new Error(`expected "${fill(expect)}" on the page, but it is not there (URL: ${p.url()})`);
       });
     } catch (e) {
       throw new Error(`Step ${i + 1} (${action}) failed: ${e.message}\nThe site may have changed: do it with the web_* tools, then save the shortcut again.`);
     }
-    if (action === 'read') reads.push(last);
+    if (action === 'read' || action === 'extract') reads.push(last);
   }
-  return reads.length ? reads.join('\n\n') : last === 'Done.' ? snapshot(site, p) : last;
+  let text = reads.length ? reads.join('\n\n') : last === 'Done.' ? await snapshot(site, p) : last;
+  if (repairs.length) text += `\n\n[The site has changed. Repaired ${repairs.join('; ')}.]`;
+  return { text, steps, repaired: repairs.length > 0 };
 }
+
+// One call at a time per site: they share one tab, and two at once would act on each other's page.
+function exclusive(site, fn) {
+  const run = (site.lock || Promise.resolve()).then(fn);
+  site.lock = run.catch(() => {});
+  return run;
+}
+
+// Record mode (lib/recorder.js).
+const REC_TOKEN = Math.random().toString(36).slice(2);
+async function startRecording(site) {
+  const p = await getPage(site);
+  const ctx = p.context();
+  site.recording = [{ action: 'open', url: p.url() }];
+  if (!site.recorder) {
+    await ctx.exposeBinding('__anysiteRecord', (_source, ev) => {
+      if (site.recording && ev?.token === REC_TOKEN) addEvent(site.recording, ev);
+    });
+    await ctx.addInitScript(recorderScript(REC_TOKEN));
+    site.recorder = true;
+  }
+  for (const page of ctx.pages()) await page.evaluate(recorderScript(REC_TOKEN)).catch(() => {});
+  await p.bringToFront().catch(() => {});
+}
+function stopRecording(site, name, description) {
+  if (!site.recording) throw new Error(`Not recording on ${site.name}. Start with action "start".`);
+  const { params, steps } = parametrize(site.recording);
+  site.recording = null;
+  if (steps.length < 2) throw new Error('Nothing was recorded: no clicks or typing happened in the window.');
+  const sc = { description, ...(Object.keys(params).length ? { params } : {}), steps };
+  checkShortcut(sc);
+  writeShortcuts(site, { ...readShortcuts(site), [name]: sc });
+  addShortcut(site, name, sc);
+  return sc;
+}
+
+// Check a site's shortcuts without changing anything: follow each one while its steps only open and read pages,
+// and stop at the first step that would act (it is only checked that its element is there). Heals what it can.
+async function doctor(site) {
+  const all = readShortcuts(site);
+  const p = await getPage(site);
+  const lines = [];
+  let broken = 0, changed = false;
+  for (const [n, sc] of Object.entries(all)) {
+    const params = sc.params || {};
+    const fill = fillFrom(params, Object.fromEntries(Object.keys(params).map(k => [k, paramSpec(params[k]).default ?? 'test'])));
+    const steps = sc.steps.map(s => ({ ...s }));
+    const repairs = [];
+    let upTo = steps.length;
+    try {
+      for (const [i, step] of steps.entries()) {
+        const { action, expect, fallbacks, ...raw } = step;
+        const a = await resolveStep(p, step, fill(raw), repairs, i);
+        if (action === 'open') await actions.open(p, { ...a, show: 'none' }, site);
+        else if (action === 'wait') { if (a.until_text) await actions.wait(p, { ...a, show: 'none' }, site); }
+        else if (!['read', 'extract', 'snapshot'].includes(action)) { upTo = i + 1; break; }
+      }
+      if (repairs.length) { all[n] = { ...sc, steps }; changed = true; }
+      const scope = upTo < steps.length ? ` (checked steps 1–${upTo}; the rest depend on step ${upTo} running)` : '';
+      lines.push(`${repairs.length ? '~' : '✓'} ${site.prefix}_${n}${scope}${repairs.length ? `: repaired ${repairs.join('; ')}` : ''}`);
+    } catch (e) {
+      broken++;
+      lines.push(`✗ ${site.prefix}_${n}: ${e.message}`);
+    }
+  }
+  if (changed) writeShortcuts(site, all);
+  return { lines, broken };
+}
+
+// Shared shortcuts: JSON files of { name: shortcut }, by default from library/<site>.json in this repository.
+// They hold steps only, never code, so they can't do anything the web_* tools can't.
+const LIBRARY = 'https://raw.githubusercontent.com/DwytMCL/anysite-mcp/main/library';
+async function addShortcuts(site, { from, only, force }) {
+  const src = from || `${LIBRARY}/${encodeURIComponent(site.name)}.json`;
+  let body;
+  if (/^https?:\/\//.test(src)) {
+    const r = await fetch(src);
+    if (!r.ok) throw new Error(`${src}: ${r.status} ${r.status === 404 ? `(no shared shortcuts for ${site.name} yet)` : r.statusText}`);
+    body = await r.text();
+  } else body = readFileSync(src, 'utf8');
+  const incoming = JSON.parse(body);
+  const mine = readShortcuts(site);
+  const added = [], skipped = [];
+  for (const [n, sc] of Object.entries(incoming)) {
+    if (only && n !== only) continue;
+    if (!/^[a-z][a-z0-9_]*$/.test(n) || typeof sc?.description !== 'string') throw new Error(`"${n}" is not a valid shortcut.`);
+    checkShortcut(sc);
+    if (mine[n] && !force) { skipped.push(n); continue; }
+    mine[n] = sc;
+    added.push(n);
+  }
+  if (only && !added.length && !skipped.length) throw new Error(`No shortcut "${only}" in ${src}.`);
+  writeShortcuts(site, mine);
+  return { added, skipped, src };
+}
+
 // MCP server.
 
 const server = new McpServer({ name: 'anysite', version: VERSION }, {
   instructions: 'Use websites through a real Chrome that is signed in as the user; each site has its own browser profile. ' +
     'Call web_snapshot first, then act on elements by their ref (e.g. e12) or role and name. After an action you get ' +
-    'only what changed on the page; call web_snapshot when you need all of it. ' +
+    'only what changed on the page; call web_snapshot when you need all of it. Use web_extract to get lists as JSON. ' +
     'Pass `site` as a site name or a domain: any domain works, not only the ones already set up. ' +
     'If a page asks the user to sign in, call web_login and wait for the user to say they are done. ' +
     'Prefer a site\'s own tools (named <site>_...) when one fits. When a sequence of steps works and is likely to be ' +
-    'wanted again, save it with web_save_shortcut so it becomes one tool.' });
+    'wanted again, save it with web_save_shortcut so it becomes one tool. If the user wants to show you how to do ' +
+    'something, use web_record. Some sites are read-only or ask the user first; respect a refusal and do not work around it.' });
 
 const tool = (name, description, schema, fn) => server.registerTool(name, { description, inputSchema: schema },
   async args => {
@@ -313,13 +646,24 @@ const tool = (name, description, schema, fn) => server.registerTool(name, { desc
     catch (e) { return { ...text(`Error: ${e.message}`), isError: true }; }
   });
 
+const zodParam = d => {
+  const p = paramSpec(d);
+  const t = (p.type === 'number' ? z.number() : p.type === 'boolean' ? z.boolean() : z.string())
+    .describe(`${p.description || ''}${p.default !== undefined ? ` (default: ${p.default})` : ''}`);
+  return p.optional || p.default !== undefined ? t.optional() : t;
+};
+
 const shortcutTools = new Map();
 function addShortcut(site, name, sc) {
   const key = `${site.prefix}_${name}`;
   shortcutTools.get(key)?.remove();
   shortcutTools.set(key, tool(key, `${sc.description} (saved shortcut for ${site.name})`,
-    Object.fromEntries(Object.entries(sc.params || {}).map(([k, d]) => [k, z.string().describe(d)])),
-    a => runSteps(site, sc.steps, a)));
+    Object.fromEntries(Object.entries(sc.params || {}).map(([k, d]) => [k, zodParam(d)])),
+    a => exclusive(site, async () => {
+      const r = await runSteps(site, sc, a);
+      if (r.repaired) { sc.steps = r.steps; updateShortcut(site, name, r.steps); }
+      return r.text + (r.repaired ? ' The shortcut was updated to match.' : '');
+    })));
 }
 
 const registered = new Set();
@@ -332,7 +676,10 @@ async function useSite(arg) {
   if (!registered.has(site.name)) {
     registered.add(site.name);
     for (const [n, t] of Object.entries(site.tools || {}))
-      tool(`${site.prefix}_${n}`, t.description, t.input || {}, async a => t.run(await getPage(site), a, site));
+      tool(`${site.prefix}_${n}`, t.description, t.input || {}, a => exclusive(site, async () => {
+        if (t.writes) await permit(site, 'write', `use ${site.prefix}_${n}`);
+        return t.run(await getPage(site), a, site);
+      }));
     for (const [n, sc] of Object.entries(readShortcuts(site))) addShortcut(site, n, sc);
   }
   return site;
@@ -340,7 +687,9 @@ async function useSite(arg) {
 
 const siteArg = z.string().optional().describe('Site name or domain, e.g. gemini or github.com. Optional when only one site is in use.');
 const web = (name, description, schema, fn) => tool(`web_${name}`, description, { site: siteArg, ...schema },
-  async ({ site, ...a }) => { const s = await useSite(site); return fn(await getPage(s), a, s); });
+  async ({ site, ...a }) => { const s = await useSite(site); return exclusive(s, async () => fn(await getPage(s), a, s)); });
+const field = z.object({ role: z.string(), name: z.string(), text: z.string(), exact: z.boolean(), nth: z.number().int(),
+  attr: z.string().describe('Return this attribute instead of the text, e.g. href') }).partial();
 
 web('snapshot', 'Accessibility tree of the site\'s current page: roles, names and text of every element, each with a ' +
   'ref (e.g. [ref=e12]) to pass to other tools. Give ref or role/name to show only that part of the page, or depth ' +
@@ -353,10 +702,17 @@ web('click', 'Click an element found by ref, role/name or text. Returns what cha
 web('type', 'Fill a text field found by ref, role/name or label/placeholder, optionally pressing Enter. ' +
   'Returns what changed on the page.',
   { ...target, value: z.string(), submit: z.boolean().optional(), show }, actions.type);
+web('select', 'Choose an option in a drop-down (<select>) found by ref, role/name or label.',
+  { ...target, value: z.string().describe('The option\'s label or value'), show }, actions.select);
 web('press', 'Press a key or chord on the focused element, e.g. Enter, Escape, Tab.', { key: z.string(), show }, actions.press);
 web('upload', 'Click an element that opens a file picker (e.g. an upload button) and give it local files.',
   { ...target, paths: z.array(z.string()), show }, actions.upload);
 web('read', 'Visible text of the page (or of one element), e.g. to read a full reply.', target, actions.read);
+web('extract', 'Rows as JSON, one per element matching the target (e.g. role "row", "listitem" or "article"). ' +
+  'Without fields each row is { text, link }. With fields, each field is found inside the row, e.g. ' +
+  '{"title":{"role":"link"},"url":{"role":"link","attr":"href"},"score":{"text":"points"}}.',
+  { ...target, fields: z.record(z.string(), field).optional(), limit: z.number().int().min(1).max(500).optional() },
+  actions.extract);
 web('wait', 'Wait for the page to settle, e.g. while something is generating. With until_text, fails if the text ' +
   'has not appeared in time.',
   { seconds: z.number().min(0).max(120), until_text: z.string().optional().describe('Stop early once this text appears'), show },
@@ -371,24 +727,47 @@ tool('web_login', 'Open a normal Chrome window on the site so the user can sign 
   'often refused). Then ask the user to sign in and quit that window, and wait for them to say so before using the site.',
   { site: z.string() }, async ({ site }) => {
     const s = await useSite(site);
-    await login(s);
+    await exclusive(s, () => login(s));
     return `A Chrome window opened on ${s.url}. Ask the user to sign in there, then ${QUIT}, ` +
       'and tell you. The login is kept for next time.';
   });
 
-const stepNames = Object.keys(actions);
+tool('web_record', 'Learn a job by watching the user do it. "start" brings the site\'s Chrome window to the front and ' +
+  'records the user\'s clicks, typing and choices there; ask the user to do the job and to tell you when they are done. ' +
+  '"stop" saves what they did as a shortcut tool named <site>_<name>, with each typed value as a parameter.',
+  { site: z.string(), action: z.enum(['start', 'stop']), name: z.string().regex(/^[a-z][a-z0-9_]*$/).optional(),
+    description: z.string().optional().describe('What the shortcut does, for stop') },
+  async ({ site, action, name, description }) => {
+    const s = await useSite(site);
+    if (action === 'start') {
+      await exclusive(s, () => startRecording(s));
+      return `Recording on ${s.name}${HEADLESS ? ' (Chrome is headless here, so the user can\'t see it: unset ANYSITE_HEADLESS to record)' : ''}. ` +
+        'Ask the user to do the job in that Chrome window and tell you when they are done. Then call web_record with ' +
+        'action "stop", a name and a description.';
+    }
+    if (!name || !description) throw new Error('Give a name and a description to save the recording.');
+    const sc = stopRecording(s, name, description);
+    return `Saved ${s.prefix}_${name}:\n${JSON.stringify(sc, null, 2)}\nRead it over: if a step clicks a specific ` +
+      'item that should change each time, edit it with web_save_shortcut to use a {{param}}.';
+  });
+
 tool('web_save_shortcut', 'Save a sequence of steps that worked as a new tool named <site>_<name>, available now and in ' +
   'later sessions. Each step is { action, ...arguments of the web_<action> tool }, e.g. ' +
   '{"action":"type","role":"textbox","name":"Search","value":"{{query}}","submit":true}. "{{param}}" is replaced by ' +
   'the argument. Find elements by role and name (refs do not last). Add "expect":"some text" to a step to make the ' +
-  'shortcut fail if that text is not on the page afterwards. The tool returns the text of its "read" steps, or the ' +
-  'final page if there are none. The steps are run once with test_args before saving, so a broken shortcut is ' +
-  'not saved. Saving under an existing name replaces it.',
+  'shortcut fail if that text is not on the page afterwards. The tool returns the text of its "read" and "extract" ' +
+  'steps, or the final page if there are none. The steps are run once with test_args before saving, so a broken ' +
+  'shortcut is not saved; that run also notes other ways to find each element, so the shortcut can repair itself ' +
+  'when the site changes. Saving under an existing name replaces it.',
   { site: z.string(), name: z.string().regex(/^[a-z][a-z0-9_]*$/), description: z.string(),
-    params: z.record(z.string(), z.string()).optional().describe('Parameter name -> description'),
+    params: z.record(z.string(), z.union([z.string(), z.object({ description: z.string(),
+      type: z.enum(['string', 'number', 'boolean']).optional(), optional: z.boolean().optional(),
+      default: z.union([z.string(), z.number(), z.boolean()]).optional() })])).optional()
+      .describe('Parameter name -> description, or { description, type, optional, default }'),
     steps: z.array(z.object({ action: z.enum(stepNames), expect: z.string().optional() }).catchall(z.any())).min(1)
       .describe(`Actions: ${stepNames.join(', ')}`),
-    test_args: z.record(z.string(), z.string()).optional().describe('Values for params to use in the test run'),
+    test_args: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional()
+      .describe('Values for params to use in the test run'),
     verify: z.boolean().optional().describe('Run the steps once before saving (default true). Set false only when ' +
       'running them again would do something twice, such as sending a message or buying something') },
   async ({ site, name, test_args = {}, verify = true, ...sc }) => {
@@ -396,32 +775,38 @@ tool('web_save_shortcut', 'Save a sequence of steps that worked as a new tool na
     checkShortcut(sc);
     let note = '';
     if (verify) {
-      const missing = Object.keys(sc.params || {}).filter(k => test_args[k] === undefined);
+      const missing = Object.entries(sc.params || {}).map(([k, d]) => [k, paramSpec(d)])
+        .filter(([k, d]) => test_args[k] === undefined && d.default === undefined && !d.optional).map(([k]) => k);
       if (missing.length) throw new Error(`Give test_args for ${missing.join(', ')} so the steps can be tried, or set verify: false.`);
-      const out = await runSteps(s, sc.steps, test_args);
-      note = ` Test run worked and returned:\n${out.slice(0, 500)}${out.length > 500 ? '…' : ''}`;
+      const r = await exclusive(s, () => runSteps(s, sc, test_args, { learn: true }));
+      sc.steps = r.steps;
+      note = ` Test run worked and returned:\n${r.text.slice(0, 500)}${r.text.length > 500 ? '…' : ''}`;
     }
-    const all = { ...readShortcuts(s), [name]: sc };
-    mkdirSync(join(HOME, 'sites'), { recursive: true });
-    writeFileSync(s.shortcutFile, JSON.stringify(all, null, 2) + '\n');
+    writeShortcuts(s, { ...readShortcuts(s), [name]: sc });
     addShortcut(s, name, sc);
     return `Saved ${s.prefix}_${name} in ${s.shortcutFile}.${note}`;
   });
 
-tool('web_list_shortcuts', 'List the shortcuts saved for a site, with their steps.', { site: z.string() }, async ({ site }) => {
-  const s = await useSite(site);
-  const all = readShortcuts(s);
-  if (!Object.keys(all).length) return `No shortcuts saved for ${s.name} yet.`;
-  return `Shortcuts for ${s.name} (${s.shortcutFile}):\n` + Object.entries(all).map(([n, sc]) =>
-    `\n${s.prefix}_${n}: ${sc.description}\n${JSON.stringify({ params: sc.params || {}, steps: sc.steps }, null, 2)}`).join('\n');
-});
+tool('web_list_shortcuts', 'List the shortcuts saved for a site with their steps. With a name, return that one as ' +
+  'JSON ready to share (other people add it with `anysite-mcp add <site> --from <file or URL>`).',
+  { site: z.string(), name: z.string().optional() }, async ({ site, name }) => {
+    const s = await useSite(site);
+    const all = readShortcuts(s);
+    if (name) {
+      if (!all[name]) throw new Error(`No shortcut "${name}" for ${s.name}. Saved: ${Object.keys(all).join(', ') || 'none'}`);
+      return JSON.stringify({ [name]: all[name] }, null, 2);
+    }
+    if (!Object.keys(all).length) return `No shortcuts saved for ${s.name} yet.`;
+    return `Shortcuts for ${s.name} (${s.shortcutFile}):\n` + Object.entries(all).map(([n, sc]) =>
+      `\n${s.prefix}_${n}: ${sc.description}\n${JSON.stringify({ params: sc.params || {}, steps: sc.steps }, null, 2)}`).join('\n');
+  });
 
 tool('web_delete_shortcut', 'Delete a saved shortcut.', { site: z.string(), name: z.string() }, async ({ site, name }) => {
   const s = await useSite(site);
   const all = readShortcuts(s);
   if (!all[name]) throw new Error(`No shortcut "${name}" for ${s.name}. Saved: ${Object.keys(all).join(', ') || 'none'}`);
   delete all[name];
-  writeFileSync(s.shortcutFile, JSON.stringify(all, null, 2) + '\n');
+  writeShortcuts(s, all);
   shortcutTools.get(`${s.prefix}_${name}`)?.remove();
   shortcutTools.delete(`${s.prefix}_${name}`);
   return `Deleted ${s.prefix}_${name}.`;
@@ -430,21 +815,87 @@ tool('web_delete_shortcut', 'Delete a saved shortcut.', { site: z.string(), name
 // CLI.
 
 const [cmd, ...rest] = process.argv.slice(2);
-if (cmd === '--version' || cmd === '-v') { console.log(VERSION); process.exit(0); }
-if (cmd === '--help' || cmd === '-h') {
-  console.log(`anysite-mcp [site ...]   Serve MCP over stdio. Sites are pack names (${packNames().join(', ')}) or domains.
-                         With none, serves every site you have signed in to.
-anysite-mcp login <site> Open the site in its own Chrome profile to sign in once.
-anysite-mcp --version    Print the version (${VERSION}).
+const flags = new Set(rest.filter(a => a.startsWith('--')));
+const flagValue = f => { const i = rest.indexOf(f); return i >= 0 ? rest[i + 1] : undefined; };
+const positional = rest.filter((a, i) => !a.startsWith('--') && !['--from', '--allow'].includes(rest[i - 1]));
+const usage = `anysite-mcp [site ...]          Serve MCP over stdio. Sites are pack names (${packNames().join(', ')}) or domains.
+                                With none, serves every site you have signed in to.
+anysite-mcp login <site>        Open the site in its own Chrome profile to sign in once.
+anysite-mcp record <site> <name>  Do a job by hand in the site's Chrome; it is saved as a shortcut.
+anysite-mcp add <site>[/<name>] Add shared shortcuts from the library (or --from <file or URL>; --force replaces).
+anysite-mcp doctor [site ...]   Check saved shortcuts without changing anything on the sites; repair what it can.
+anysite-mcp permissions <site>  Show or set what the agent may do there:
+                                --read-only | --read-write, --confirm | --no-confirm,
+                                --allow <domain,...> | --allow-any | --allow-default
+anysite-mcp --version           Print the version (${VERSION}).
 Data: ${HOME}
-Environment: ANYSITE_HOME, ANYSITE_CHROME, ANYSITE_CHROME_ARGS, ANYSITE_HEADLESS=1, ANYSITE_DOWNLOADS`);
-  process.exit(0);
-}
+Environment: ANYSITE_HOME, ANYSITE_CHROME, ANYSITE_CHROME_ARGS, ANYSITE_HEADLESS=1, ANYSITE_DOWNLOADS`;
+const need = (ok, msg) => { if (!ok) { console.error(msg); process.exit(1); } };
+
+if (cmd === '--version' || cmd === '-v') { console.log(VERSION); process.exit(0); }
+if (cmd === '--help' || cmd === '-h') { console.log(usage); process.exit(0); }
 if (cmd === 'login') {
-  if (!rest[0]) { console.error('Usage: anysite-mcp login <site>'); process.exit(1); }
-  const site = await loadSite(rest[0]);
+  need(positional[0], 'Usage: anysite-mcp login <site>');
+  const site = await loadSite(positional[0]);
   await login(site);
   console.log(`Sign in to ${site.name} in the window that opened, then ${QUIT}.`);
+  process.exit(0);
+}
+if (cmd === 'record') {
+  need(positional[1] && /^[a-z][a-z0-9_]*$/.test(positional[1]), 'Usage: anysite-mcp record <site> <name>   (name: lowercase letters, digits, _)');
+  const site = await loadSite(positional[0]);
+  await startRecording(site);
+  const { createInterface } = await import('node:readline/promises');
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  await rl.question(`Recording in the Chrome window for ${site.name}. Do the job there, then press Enter here. `);
+  const description = (await rl.question('What does it do? (one line, for the agent) ')).trim() || `Recorded on ${site.name}`;
+  rl.close();
+  const sc = stopRecording(site, positional[1], description);
+  console.log(`Saved ${site.prefix}_${positional[1]} in ${site.shortcutFile}:\n${JSON.stringify(sc, null, 2)}`);
+  process.exit(0);
+}
+if (cmd === 'add') {
+  need(positional[0], 'Usage: anysite-mcp add <site>[/<name>] [--from <file or URL>] [--force]');
+  const [siteArg_, only] = positional[0].split(/\/(?=[a-z][a-z0-9_]*$)/);
+  const site = await loadSite(siteArg_);
+  const r = await addShortcuts(site, { from: flagValue('--from'), only, force: flags.has('--force') });
+  const all = readShortcuts(site);
+  for (const n of r.added) console.log(`+ ${site.prefix}_${n}: ${all[n].description}`);
+  for (const n of r.skipped) console.log(`  ${site.prefix}_${n} already exists (--force replaces it)`);
+  console.log(r.added.length ? `Added from ${r.src}. They hold steps only, no code; see them with web_list_shortcuts.` : 'Nothing added.');
+  process.exit(0);
+}
+if (cmd === 'doctor') {
+  const dir = join(HOME, 'sites');
+  const names = positional.length ? positional : existsSync(dir) ? readdirSync(dir).filter(f => f.endsWith('.json')).map(f => f.slice(0, -5)) : [];
+  if (!names.length) console.log('No saved shortcuts yet.');
+  let broken = 0;
+  for (const n of names) {
+    const site = await loadSite(n);
+    if (!Object.keys(readShortcuts(site)).length) continue;
+    console.log(site.name);
+    const r = await doctor(site);
+    for (const l of r.lines) console.log(`  ${l}`);
+    broken += r.broken;
+  }
+  process.exit(broken ? 1 : 0);
+}
+if (cmd === 'permissions') {
+  need(positional[0], 'Usage: anysite-mcp permissions <site> [--read-only|--read-write] [--confirm|--no-confirm] [--allow <domain,...>|--allow-any|--allow-default]');
+  const site = await loadSite(positional[0]);
+  const change = {};
+  if (flags.has('--read-only')) change.read_only = true;
+  if (flags.has('--read-write')) change.read_only = null;
+  if (flags.has('--confirm')) change.confirm = true;
+  if (flags.has('--no-confirm')) change.confirm = null;
+  if (flags.has('--allow')) change.allowed_domains = flagValue('--allow').split(',').map(d => d.trim()).filter(Boolean);
+  if (flags.has('--allow-any')) change.allowed_domains = ['*'];
+  if (flags.has('--allow-default')) change.allowed_domains = null;
+  if (Object.keys(change).length) writeSiteSettings(SETTINGS, site.name, change);
+  const pm = perms(site);
+  console.log(`${site.name}: ${pm.read_only ? 'read-only' : 'read and write'}; ` +
+    `${pm.confirm ? 'asks you before sending, buying, deleting and the like' : 'does not ask before acting'}; ` +
+    `may open ${allowedDomains(site).join(', ')}${pm.allowed_domains ? '' : ' (default)'}.\nSettings: ${SETTINGS}`);
   process.exit(0);
 }
 const profiles = join(HOME, 'profiles');
