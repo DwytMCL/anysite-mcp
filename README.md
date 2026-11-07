@@ -4,6 +4,7 @@
 [![license](https://img.shields.io/github/license/DwytMCL/anysite-mcp)](LICENSE)
 [![MCP](https://img.shields.io/badge/MCP-server-blue)](https://modelcontextprotocol.io)
 [![CI](https://github.com/DwytMCL/anysite-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/DwytMCL/anysite-mcp/actions/workflows/ci.yml)
+[![Shortcut Library](https://img.shields.io/badge/Shortcut_Library-browse-orange)](https://dwytmcl.github.io/anysite-mcp/)
 
 **Your agent learns a website once, then keeps it as a tool. Signed in as you, on your own computer.**
 
