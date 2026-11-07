@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shortcuts Library</title>
+<meta name="description" content="A community-maintained library of keyboard shortcuts and workflows for Mac, iOS, Windows, VS Code, Blender, Vim and more.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="page">
+
+  <div id="header">
+    <h1><a href="./">Shortcuts Library</a></h1>
+    <p class="tagline">A community list of keyboard shortcuts and workflows. Plain text, no accounts, no tracking.</p>
+    <ul id="nav">
+      <li><a href="#browse">Browse</a></li>
+      <li><a href="#add">Add a shortcut</a></li>
+      <li><a href="#" id="repo-link">Source on GitHub</a></li>
+    </ul>
+  </div>
+
+  <div id="content">
+
+    <div id="browse">
+      <form id="search-form" onsubmit="return false;">
+        <label for="search">Search:</label>
+        <input type="search" id="search" name="q" placeholder="e.g. command palette, ctrl+d, split" autocomplete="off">
+        <span id="count"></span>
+      </form>
+
+      <p id="categories"><strong>Category:</strong> <span id="category-list"></span></p>
+
+      <table id="results">
+        <thead>
+          <tr>
+            <th class="col-title">Shortcut</th>
+            <th class="col-keys">Keys / Workflow</th>
+            <th class="col-platform">Platform</th>
+          </tr>
+        </thead>
+        <tbody id="results-body">
+          <tr><td colspan="3" class="empty">Loading&hellip;</td></tr>
+        </tbody>
+      </table>
+      <noscript><p class="notice">This page needs JavaScript to list shortcuts. You can read <a href="shortcuts.json">shortcuts.json</a> directly.</p></noscript>
+    </div>
+
+    <div id="add">
+      <h2>Add a shortcut</h2>
+      <p>This site is static, so submissions go through GitHub. Fill in the form, then either
+      open a pre-filled issue, or copy the JSON and add it to <code>shortcuts-library/shortcuts.json</code> in a pull request.</p>
+
+      <form id="add-form">
+        <table class="form-table">
+          <tr>
+            <th><label for="f-title">Title <span class="req">*</span></label></th>
+            <td><input type="text" id="f-title" name="title" maxlength="80" required placeholder="Open command palette"></td>
+          </tr>
+          <tr>
+            <th><label for="f-platform">Platform <span class="req">*</span></label></th>
+            <td><select id="f-platform" name="platform" required></select></td>
+          </tr>
+          <tr>
+            <th><label for="f-keys">Key combination</label></th>
+            <td>
+              <input type="text" id="f-keys" name="keys" maxlength="60" placeholder="Ctrl+Shift+P">
+              <div class="hint">Use <code>+</code> between keys pressed together and a space between steps, e.g. <code>Ctrl+K Ctrl+S</code> or <code>g g</code>.</div>
+            </td>
+          </tr>
+          <tr>
+            <th><label for="f-link">Workflow link</label></th>
+            <td>
+              <input type="url" id="f-link" name="link" placeholder="https://www.icloud.com/shortcuts/...">
+              <div class="hint">For Shortcuts app workflows, scripts or docs. Fill in keys, a link, or both.</div>
+            </td>
+          </tr>
+          <tr>
+            <th><label for="f-description">Description <span class="req">*</span></label></th>
+            <td><textarea id="f-description" name="description" rows="3" maxlength="300" required placeholder="What it does, in one or two sentences."></textarea></td>
+          </tr>
+          <tr>
+            <th><label for="f-author">Your GitHub name</label></th>
+            <td><input type="text" id="f-author" name="author" maxlength="39" placeholder="optional"></td>
+          </tr>
+          <tr>
+            <th></th>
+            <td><button type="submit">Generate submission</button> <span id="form-error" class="error"></span></td>
+          </tr>
+        </table>
+      </form>
+
+      <div id="output" hidden>
+        <h3>Your submission</h3>
+        <pre id="json-output"></pre>
+        <p>
+          <button type="button" id="copy-btn">Copy JSON</button>
+          <a id="issue-link" class="button" href="#" target="_blank" rel="noopener">Open a GitHub issue with this</a>
+          <span id="copy-status"></span>
+        </p>
+        <p class="hint">Pull request instead: edit <code>shortcuts-library/shortcuts.json</code> on GitHub, paste this object into the list (mind the comma), and propose the change.</p>
+      </div>
+    </div>
+
+  </div>
+
+  <div id="footer">
+    <p>Contributions are welcome. Content is shared under CC BY 4.0. <a href="shortcuts.json">Raw data (JSON)</a></p>
+  </div>
+
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

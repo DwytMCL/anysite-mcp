@@ -1,0 +1,192 @@
+[
+  {
+    "id": "mac-spotlight",
+    "title": "Open Spotlight",
+    "description": "Search apps, files and settings, or do quick math and conversions.",
+    "platform": "Mac",
+    "keys": "Cmd+Space"
+  },
+  {
+    "id": "mac-screenshot-area",
+    "title": "Screenshot a selected area",
+    "description": "Drag to capture part of the screen. Press Space while dragging to capture a whole window instead.",
+    "platform": "Mac",
+    "keys": "Cmd+Shift+4"
+  },
+  {
+    "id": "mac-screenshot-toolbar",
+    "title": "Screenshot and recording toolbar",
+    "description": "Opens the capture toolbar with options for screen recording, timers and save location.",
+    "platform": "Mac",
+    "keys": "Cmd+Shift+5"
+  },
+  {
+    "id": "mac-force-quit",
+    "title": "Force Quit Applications",
+    "description": "Opens the Force Quit window to close an app that stopped responding.",
+    "platform": "Mac",
+    "keys": "Cmd+Option+Esc"
+  },
+  {
+    "id": "mac-hidden-files",
+    "title": "Show hidden files in Finder",
+    "description": "Toggles files that start with a dot, like .gitignore, in Finder and Open dialogs.",
+    "platform": "Mac",
+    "keys": "Cmd+Shift+."
+  },
+  {
+    "id": "ios-shortcuts-getting-started",
+    "title": "Shortcuts User Guide",
+    "description": "Apple's guide to building your own automations in the Shortcuts app on iPhone, iPad and Mac.",
+    "platform": "iOS Shortcuts",
+    "link": "https://support.apple.com/guide/shortcuts/welcome/ios"
+  },
+  {
+    "id": "ios-shortcuts-back-tap",
+    "title": "Run a shortcut with Back Tap",
+    "description": "Settings > Accessibility > Touch > Back Tap. Pick Double or Triple Tap and choose any shortcut to run it by tapping the back of the phone.",
+    "platform": "iOS Shortcuts",
+    "link": "https://support.apple.com/guide/shortcuts/welcome/ios"
+  },
+  {
+    "id": "windows-snap-layouts",
+    "title": "Snap layouts",
+    "description": "Shows the snap layout picker for the active window on Windows 11.",
+    "platform": "Windows",
+    "keys": "Win+Z"
+  },
+  {
+    "id": "windows-clipboard-history",
+    "title": "Clipboard history",
+    "description": "Paste from a list of recently copied items. Turn it on the first time you open it.",
+    "platform": "Windows",
+    "keys": "Win+V"
+  },
+  {
+    "id": "windows-snipping",
+    "title": "Snipping Tool",
+    "description": "Capture a region, window or the full screen and copy it to the clipboard.",
+    "platform": "Windows",
+    "keys": "Win+Shift+S"
+  },
+  {
+    "id": "windows-task-manager",
+    "title": "Open Task Manager",
+    "description": "Opens Task Manager directly, without going through the Ctrl+Alt+Del screen.",
+    "platform": "Windows",
+    "keys": "Ctrl+Shift+Esc"
+  },
+  {
+    "id": "windows-emoji",
+    "title": "Emoji and symbol panel",
+    "description": "Insert emoji, kaomoji and special symbols into any text field.",
+    "platform": "Windows",
+    "keys": "Win+."
+  },
+  {
+    "id": "linux-terminal-gnome",
+    "title": "Open a terminal (GNOME / Ubuntu)",
+    "description": "Opens a new terminal window on Ubuntu and most GNOME desktops.",
+    "platform": "Linux",
+    "keys": "Ctrl+Alt+T"
+  },
+  {
+    "id": "vs-code-command-palette",
+    "title": "Command Palette",
+    "description": "Run any command by name. Use Cmd+Shift+P on macOS.",
+    "platform": "VS Code",
+    "keys": "Ctrl+Shift+P"
+  },
+  {
+    "id": "vs-code-quick-open",
+    "title": "Quick Open file",
+    "description": "Jump to any file in the workspace by typing part of its name. Use Cmd+P on macOS.",
+    "platform": "VS Code",
+    "keys": "Ctrl+P"
+  },
+  {
+    "id": "vs-code-multi-cursor-next",
+    "title": "Select next occurrence",
+    "description": "Adds the next match of the current selection as another cursor. Use Cmd+D on macOS.",
+    "platform": "VS Code",
+    "keys": "Ctrl+D"
+  },
+  {
+    "id": "vs-code-keyboard-shortcuts",
+    "title": "Keyboard Shortcuts editor",
+    "description": "Opens the list of every binding so you can search and change them. Press Ctrl+K, release, then Ctrl+S.",
+    "platform": "VS Code",
+    "keys": "Ctrl+K Ctrl+S",
+    "link": "https://code.visualstudio.com/docs/getstarted/keybindings"
+  },
+  {
+    "id": "vs-code-toggle-terminal",
+    "title": "Toggle integrated terminal",
+    "description": "Shows or hides the terminal panel.",
+    "platform": "VS Code",
+    "keys": "Ctrl+`"
+  },
+  {
+    "id": "vim-save-quit",
+    "title": "Save and quit",
+    "description": "Writes the file and exits. In Normal mode, ZZ does the same.",
+    "platform": "Vim",
+    "keys": ":wq"
+  },
+  {
+    "id": "vim-go-to-top",
+    "title": "Go to first line",
+    "description": "Moves the cursor to the first line of the file. G goes to the last line.",
+    "platform": "Vim",
+    "keys": "g g"
+  },
+  {
+    "id": "vim-change-inner-word",
+    "title": "Change inner word",
+    "description": "Deletes the word under the cursor and enters Insert mode. Try ci\" or ci( for quotes and brackets.",
+    "platform": "Vim",
+    "keys": "c i w"
+  },
+  {
+    "id": "vim-repeat",
+    "title": "Repeat last change",
+    "description": "Repeats the last edit at the cursor position. Pairs well with n to jump to the next search match.",
+    "platform": "Vim",
+    "keys": "."
+  },
+  {
+    "id": "blender-search",
+    "title": "Operator search menu",
+    "description": "Search for any tool or operator by name (Blender 2.8 and later).",
+    "platform": "Blender",
+    "keys": "F3"
+  },
+  {
+    "id": "blender-grab",
+    "title": "Grab (move)",
+    "description": "Moves the selection. Follow with X, Y or Z to lock to an axis, or type a number for an exact distance. R rotates and S scales the same way.",
+    "platform": "Blender",
+    "keys": "G"
+  },
+  {
+    "id": "blender-pie-view",
+    "title": "View pie menu",
+    "description": "Hold the backtick key for a pie menu of front, side, top and camera views.",
+    "platform": "Blender",
+    "keys": "`"
+  },
+  {
+    "id": "blender-tab-edit",
+    "title": "Toggle Edit Mode",
+    "description": "Switches the active object between Object Mode and Edit Mode.",
+    "platform": "Blender",
+    "keys": "Tab"
+  },
+  {
+    "id": "browser-reopen-tab",
+    "title": "Reopen closed tab",
+    "description": "Brings back the last closed tab in Chrome, Firefox and Edge. Use Cmd+Shift+T on macOS.",
+    "platform": "Browser",
+    "keys": "Ctrl+Shift+T"
+  }
+]
