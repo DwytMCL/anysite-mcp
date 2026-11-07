@@ -3,14 +3,18 @@
 [![npm](https://img.shields.io/npm/v/anysite-mcp)](https://www.npmjs.com/package/anysite-mcp)
 [![license](https://img.shields.io/github/license/DwytMCL/anysite-mcp)](LICENSE)
 [![MCP](https://img.shields.io/badge/MCP-server-blue)](https://modelcontextprotocol.io)
+[![CI](https://github.com/DwytMCL/anysite-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/DwytMCL/anysite-mcp/actions/workflows/ci.yml)
 
-**Turn any website into tools for Claude and other AI agents, signed in as you.**
+**Your agent learns a website once, then keeps it as a tool. Signed in as you, on your own computer.**
 
 ![Claude looks something up on Wikipedia, saves the steps as a shortcut, and reuses it as a new tool](docs/demo.gif)
 
 ```bash
 claude mcp add anysite -- npx -y anysite-mcp
 ```
+
+[![Install in Cursor](https://img.shields.io/badge/Cursor-Install-black?logo=cursor)](https://cursor.com/en/install-mcp?name=anysite&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyIteSIsImFueXNpdGUtbWNwIl19)
+[![Install in VS Code](https://img.shields.io/badge/VS_Code-Install-0098FF?logo=visualstudiocode)](https://insiders.vscode.dev/redirect/mcp/install?name=anysite&config=%7B%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22anysite-mcp%22%5D%7D)
 
 anysite-mcp is an [MCP](https://modelcontextprotocol.io) server that drives a real Chrome on your computer. Every
 site gets its own browser profile that you sign in to once, by hand. The agent then works the site the way a
@@ -21,6 +25,8 @@ No API keys, no cloud browser, no extra LLM. Your logins stay on your machine.
 
 - **Your accounts, kept apart.** One Chrome profile per site, signed in by hand once. Works with Google sign-in.
 - **Gets faster with use.** The agent turns a job it has figured out into a one-call tool that's there next session.
+  Shortcuts are tested before they're saved and fail loudly if a page stops looking right.
+- **Light on tokens.** After each action the agent sees only what changed on the page, and points at elements by ref.
 - **Survives redesigns.** Elements are found by role and name, not CSS selectors.
 - **Packs for popular sites.** Gemini and NotebookLM are included; a new pack is one file.
 
@@ -52,9 +58,11 @@ Claude: github_com_notifications {}   → 3 unread: …
 
 ## Why another browser MCP?
 
+Most browser tools make the agent rediscover a site every session. anysite-mcp keeps what it learned.
+
 | | anysite-mcp | Playwright MCP | browser-use / Stagehand |
 |---|---|---|---|
-| Signed in as you | Yes, a separate profile per site, signed in by hand once | One profile for everything, or a fresh one each run | Usually cloud or fresh browsers |
+| Signed in as you | Yes, a separate profile per site, signed in by hand once | One browser for everything (its extension can use your Chrome) | Usually cloud or fresh browsers |
 | Google sign-in (Gemini, NotebookLM, Gmail) | Works: sign-in happens in a plain, non-automated window | Often refused as an "insecure browser" | Often refused |
 | Gets faster with use | The agent saves working steps as new tools | No | No |
 | Site packs | NotebookLM and Gemini included; add your own in one file | No | No |
@@ -65,9 +73,10 @@ session revoked by Google (and other careful sites), which logs you out everywhe
 
 ## Install
 
-You need Node 18+ and Chrome (or `npx playwright install chromium`).
+You need Node 18+ and Chrome (or `npx playwright install chromium`). Works on macOS, Windows and Linux.
 
-1. Sign in to the sites you want, once each. A normal Chrome window opens; sign in, then quit it (Cmd+Q on a Mac).
+1. Sign in to the sites you want, once each. A normal Chrome window opens; sign in, then quit it (Cmd+Q on a Mac,
+   close all its windows on Windows and Linux).
 
    ```bash
    npx -y anysite-mcp login gemini
@@ -98,15 +107,15 @@ With no arguments the server offers every site you have signed in to. To pick si
 
 | Tool | What it does |
 |---|---|
-| `web_snapshot` | The page's accessibility tree: roles, names and text. Give `role`/`name` to see only part of it. |
+| `web_snapshot` | The page's accessibility tree: roles, names, text, and a ref per element (`[ref=e12]`). Give `ref` or `role`/`name` to see only part of it, `depth` for an outline. |
 | `web_open` | Go to a URL (absolute or relative to the site) |
-| `web_click`, `web_type`, `web_press` | Act on an element found by role and name, or by visible text (add `within: "dialog"` and so on to look only inside one part of the page) |
+| `web_click`, `web_type`, `web_press` | Act on an element found by `ref`, by role and name, or by visible text (add `within: "dialog"` and so on to look only inside one part of the page). Returns only what changed; `show: "full"` for the whole page. |
 | `web_read` | Text of the page or of one element |
 | `web_wait` | Wait, or wait until some text appears |
 | `web_upload`, `web_download` | Give files to a file picker; save a download |
 | `web_screenshot` | PNG of the page, for when the tree is not enough |
 | `web_login` | Open a plain window so you can sign in |
-| `web_save_shortcut`, `web_delete_shortcut` | Turn a working sequence into a tool named `<site>_<name>` |
+| `web_save_shortcut`, `web_list_shortcuts`, `web_delete_shortcut` | Turn a working sequence into a tool named `<site>_<name>` (tried once before it's saved) |
 
 **Packs included**
 
@@ -116,7 +125,9 @@ With no arguments the server offers every site you have signed in to. To pick si
 ## Shortcuts
 
 A shortcut is a list of steps, each one the arguments of a `web_*` tool plus its `action`. `{{param}}` is
-filled in from the tool's arguments. It returns the text of its `read` steps. Shortcuts are saved in
+filled in from the tool's arguments. It returns the text of its `read` steps. A step's `expect` is text that must
+be on the page afterwards, so a shortcut fails instead of returning the wrong thing. Before saving, the steps are
+run once with `test_args` (set `verify: false` for steps that must not happen twice, like sending). Shortcuts are saved in
 `~/.anysite-mcp/sites/<site>.json`, which you can edit, share or commit:
 
 ```json
@@ -126,15 +137,15 @@ filled in from the tool's arguments. It returns the text of its `read` steps. Sh
     "params": { "query": "What to search for" },
     "steps": [
       { "action": "open", "url": "https://hn.algolia.com/?q={{query}}" },
-      { "action": "wait", "seconds": 5, "until_text": "results" },
+      { "action": "wait", "seconds": 5, "until_text": "results", "expect": "{{query}}" },
       { "action": "read", "role": "main" }
     ]
   }
 }
 ```
 
-If a site changes and a step fails, the error says which step, and the agent can redo the job with the `web_*`
-tools and save the shortcut again.
+If a site changes and a step fails, the error says which step and why, and the agent can redo the job with the
+`web_*` tools and save the shortcut again.
 
 ## Write a pack
 
@@ -170,8 +181,15 @@ Then run `npx -y anysite-mcp login hn` (or just use `site: "hn"`), and the agent
 - Elements are found with Playwright's role, label and text locators, never CSS selectors. When a click is
   blocked by an overlay, the element is operated from the keyboard instead.
 
-Settings (environment variables): `ANYSITE_HOME` (default `~/.anysite-mcp`), `ANYSITE_CHROME` (browser binary),
-`ANYSITE_DOWNLOADS` (default `~/Downloads/anysite`).
+Settings (environment variables):
+
+| Variable | What it does |
+|---|---|
+| `ANYSITE_HOME` | Where profiles and shortcuts live (default `~/.anysite-mcp`) |
+| `ANYSITE_CHROME` | Path to the Chrome or Chromium binary |
+| `ANYSITE_HEADLESS=1` | Run the automated Chrome without a window. Sign-in always opens a window. |
+| `ANYSITE_CHROME_ARGS` | Extra Chrome flags, e.g. `--no-sandbox` when running as root in a container |
+| `ANYSITE_DOWNLOADS` | Where downloads go (default `~/Downloads/anysite`) |
 
 ## Safety
 
@@ -179,11 +197,28 @@ The agent acts as you on the sites you sign in to. Only sign in to sites you are
 eye on anything that sends, buys or deletes. Profiles hold your cookies: never share or commit
 `~/.anysite-mcp/profiles`.
 
+## FAQ
+
+**Is it safe to let an agent use my accounts?** It can do anything you can do on the sites you sign in to, so only
+sign in to sites you're happy for it to use. Each site has its own profile, so it never sees your other logins.
+Per-site read-only mode and confirm-before-sending are coming next.
+
+**Will a site ban me for this?** anysite-mcp uses a normal Chrome at human speed, and signs in by hand. Still, read
+the terms of the sites you automate, and don't use it for bulk scraping.
+
+**Does it work with Cursor, VS Code, Windsurf, Claude Desktop, local models?** Yes: it's a standard MCP server over
+stdio, so any MCP client works.
+
+**Why not just one browser profile for everything?** Google and other careful sites revoke sessions that show up
+in two browsers at once, which logs you out everywhere. One profile per site avoids that.
+
 ## Development
 
 ```bash
 npm install
-npm test   # starts the server on example.com, saves and runs a shortcut
+npm test   # headless self-check against a local test page: snapshots, refs, shortcuts
 ```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). New site packs are especially welcome.
 
 MIT License.

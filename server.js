@@ -18,6 +18,12 @@ const HOME = process.env.ANYSITE_HOME || join(homedir(), '.anysite-mcp');
 const DOWNLOADS = process.env.ANYSITE_DOWNLOADS || join(homedir(), 'Downloads', 'anysite');
 const PACK_DIRS = [join(HOME, 'sites'), fileURLToPath(new URL('./sites', import.meta.url))];
 const MAX_TEXT = 40000;
+const VERSION = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version;
+// ANYSITE_HEADLESS=1 runs the automated Chrome without a window (sign-in always gets a window).
+// ANYSITE_CHROME_ARGS adds Chrome flags, e.g. "--no-sandbox" when running as root in a container.
+const HEADLESS = /^(1|true|yes)$/i.test(process.env.ANYSITE_HEADLESS || '');
+const CHROME_ARGS = (process.env.ANYSITE_CHROME_ARGS || '').split(/\s+/).filter(Boolean);
+const QUIT = process.platform === 'darwin' ? 'quit that window (Cmd+Q)' : 'close all of its windows';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 // Every Chromium that Playwright has downloaded, newest revision first.
@@ -38,7 +44,10 @@ const CHROME = [process.env.ANYSITE_CHROME,
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
   '/Applications/Chromium.app/Contents/MacOS/Chromium',
   '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium', '/usr/bin/chromium-browser',
-  'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+  '/snap/bin/chromium',
+  ...[process.env.LOCALAPPDATA, process.env.PROGRAMFILES || 'C:\\Program Files',
+    process.env['PROGRAMFILES(X86)'] || 'C:\\Program Files (x86)']
+    .filter(Boolean).map(d => join(d, 'Google', 'Chrome', 'Application', 'chrome.exe')),
   ...playwrightChromes()].find(p => p && existsSync(p));
 if (!CHROME) {
   console.error('No Chrome found. Install Google Chrome, run `npx playwright install chromium`, or set ANYSITE_CHROME.');
@@ -46,7 +55,7 @@ if (!CHROME) {
 }
 
 const launch = (site, extra) => spawn(CHROME, [`--user-data-dir=${site.profile}`, '--no-first-run',
-  '--no-default-browser-check', ...extra], { stdio: 'ignore', detached: true }).unref();
+  '--no-default-browser-check', ...CHROME_ARGS, ...extra], { stdio: 'ignore', detached: true }).unref();
 
 // Sites. "gemini" names a pack (sites/gemini.js, or ~/.anysite-mcp/sites/gemini.js to add or override one);
 // "github.com" or a URL is any site. The name keys the site's profile, tools and saved shortcuts.
@@ -56,7 +65,8 @@ const packNames = () => [...new Set(PACK_DIRS.filter(existsSync)
 
 const sites = new Map();
 async function loadSite(arg) {
-  const url = /[.:/]/.test(arg) ? new URL(/^https?:\/\//.test(arg) ? arg : `https://${arg}`) : null;
+  const scheme = /^(localhost|127\.0\.0\.1)(:|$)/.test(arg) ? 'http' : 'https';
+  const url = /[.:/]/.test(arg) ? new URL(/^https?:\/\//.test(arg) ? arg : `${scheme}://${arg}`) : null;
   const name = url ? url.hostname.replace(/^www\./, '') : arg.toLowerCase();
   if (sites.has(name)) return sites.get(name);
   if (!url && !/^[a-z0-9_-]+$/.test(name)) throw new Error(`Bad site name "${arg}".`);
@@ -79,7 +89,7 @@ async function getPage(site) {
   let browser = await connect().catch(() => undefined);
   if (!browser) {
     rmSync(portFile, { force: true });
-    launch(site, ['--remote-debugging-port=0', site.url]);
+    launch(site, ['--remote-debugging-port=0', ...(HEADLESS ? ['--headless=new'] : []), site.url]);
     for (let i = 0; !browser && i < 40; i++) {
       await sleep(500);
       browser = await connect().catch(() => undefined);
@@ -112,30 +122,67 @@ async function login(site) {
 const clip = s => (s.length > MAX_TEXT ? s.slice(0, MAX_TEXT) + '\n…[truncated]' : s);
 const text = s => ({ content: [{ type: 'text', text: clip(s) }] });
 
-// role+name is preferred; text is a fallback for elements without a useful role.
-const target = { role: z.string().optional().describe('ARIA role from the snapshot, e.g. button, link, textbox, tab'),
+// A ref from the latest snapshot is the quickest way to point at an element; role+name is what lasts (and
+// what shortcuts store); text is a fallback for elements without a useful role.
+const target = { ref: z.string().optional().describe('Element ref from the latest snapshot, e.g. e12. Refs last until the page changes; shortcuts must use role/name instead'),
+  role: z.string().optional().describe('ARIA role from the snapshot, e.g. button, link, textbox, tab'),
   name: z.string().optional().describe('Accessible name from the snapshot'),
   text: z.string().optional().describe('Visible text, used when role/name do not match'),
   exact: z.boolean().optional(), nth: z.number().int().optional().describe('Pick the nth match (0-based) when several match'),
   within: z.string().optional().describe('Only look inside the last element with this role (the topmost dialog, for example), e.g. main, dialog, navigation') };
-const hasTarget = a => a.role || a.name || a.text;
+const hasTarget = a => a.ref || a.role || a.name || a.text;
+const show = z.enum(['changes', 'full', 'none']).optional()
+  .describe('What to return afterwards: only what changed on the page (default), the full snapshot, or nothing');
 
-function locate(p, { role, name, text: t, exact, nth, within }) {
+function locate(p, { ref, role, name, text: t, exact, nth, within }) {
+  if (ref) return p.getByRef(ref.replace(/^\[?(ref=)?|\]$/g, ''));
   const root = within ? p.getByRole(within).last() : p;
   const loc = role ? root.getByRole(role, name ? { name, exact } : {})
     : name ? root.getByLabel(name, { exact }).or(root.getByPlaceholder(name, { exact }))
     : t ? root.getByText(t, { exact }) : null;
-  if (!loc) throw new Error('Give role, name or text.');
+  if (!loc) throw new Error('Give ref, role, name or text.');
   return nth === undefined ? loc.first() : loc.nth(nth);
 }
 
-async function snapshot(site, p, a = {}) {
-  await p.waitForLoadState('domcontentloaded').catch(() => {});
-  const hint = /accounts\.google\.com|\/(log-?in|sign-?in|auth)\b/i.test(p.url())
-    ? `\nThis looks like a sign-in page. Call web_login for "${site.name}" and ask the user to sign in.` : '';
-  const root = hasTarget(a) ? locate(p, a) : p.locator('body');
-  return `Site: ${site.name}\nURL: ${p.url()}\nTitle: ${await p.title()}${hint}\n\n${await root.ariaSnapshot()}`;
+// The lines of `after` that are new since `before`, with their parent lines for context. Refs stay the same
+// for the same element across snapshots, so unchanged elements give identical lines.
+function changes(before, after) {
+  const left = new Map();
+  for (const l of before.split('\n')) left.set(l, (left.get(l) || 0) + 1);
+  const lines = after.split('\n');
+  const keep = new Set();
+  lines.forEach((l, i) => { const n = left.get(l); if (n) left.set(l, n - 1); else keep.add(i); });
+  const removed = [...left.values()].reduce((a, b) => a + b, 0);
+  if (!keep.size && !removed) return 'Nothing changed on the page. web_snapshot shows all of it.';
+  if (keep.size > lines.length / 2) return after;
+  const indent = l => l.match(/^ */)[0].length;
+  for (const i of [...keep]) {
+    let d = indent(lines[i]);
+    for (let j = i - 1; j >= 0 && d > 0; j--) if (indent(lines[j]) < d) { keep.add(j); d = indent(lines[j]); }
+  }
+  const out = [];
+  [...keep].sort((a, b) => a - b).forEach((i, k, all) => { if (k && i > all[k - 1] + 1) out.push('  …'); out.push(lines[i]); });
+  return `Changed since the last snapshot (${removed} line${removed === 1 ? '' : 's'} gone; web_snapshot shows all):\n${out.join('\n')}`;
 }
+
+// Snapshots are Playwright's AI-mode accessibility tree: roles, names, text, and a [ref=eN] per element.
+async function snapshot(site, p, a = {}, mode = 'full') {
+  await p.waitForLoadState('domcontentloaded').catch(() => {});
+  const url = p.url();
+  const hint = /accounts\.google\.com|\/(log-?in|sign-?in|auth)\b/i.test(url)
+    ? `\nThis looks like a sign-in page. Call web_login for "${site.name}" and ask the user to sign in.` : '';
+  const opts = { mode: 'ai', ...(a.depth ? { depth: a.depth } : {}) };
+  let tree;
+  if (hasTarget(a)) tree = await locate(p, a).ariaSnapshot(opts);
+  else {
+    tree = await p.ariaSnapshot(opts);
+    const prev = site.last;
+    if (!a.depth) site.last = { url, tree };
+    if (mode === 'changes' && prev?.url === url) tree = changes(prev.tree, tree);
+  }
+  return `Site: ${site.name}\nURL: ${url}\nTitle: ${await p.title()}${hint}\n\n${tree}`;
+}
+const after = (s, p, mode = 'changes') => mode === 'none' ? 'Done.' : snapshot(s, p, {}, mode);
 
 // Click like a mouse; if another element covers the target (common for styled radio buttons and
 // checkboxes), operate it from the keyboard instead, as a screen-reader user would.
@@ -149,7 +196,6 @@ async function activate(loc) {
     await loc.press(/radio|checkbox|switch/.test(role) ? 'Space' : 'Enter');
   }
 }
-
 // Helpers handed to packs.
 const kit = {
   sleep,
@@ -178,27 +224,29 @@ const kit = {
 // Page actions: each is a web_* tool and a step a shortcut can use. Each returns text.
 const actions = {
   snapshot: (p, a, s) => snapshot(s, p, a),
-  open: async (p, { url }, s) => { await p.goto(url ? new URL(url, s.url).href : s.url); return snapshot(s, p); },
-  click: async (p, a, s) => { await activate(locate(p, a)); await sleep(800); return snapshot(s, p); },
-  type: async (p, { value, submit, ...a }, s) => {
+  open: async (p, { url, show: m = 'full' }, s) => { await p.goto(url ? new URL(url, s.url).href : s.url); return after(s, p, m); },
+  click: async (p, { show: m, ...a }, s) => { await activate(locate(p, a)); await sleep(800); return after(s, p, m); },
+  type: async (p, { value, submit, show: m, ...a }, s) => {
     const loc = locate(p, a);
     await loc.fill(value, { timeout: 10000 });
     if (submit) await loc.press('Enter');
     await sleep(800);
-    return snapshot(s, p);
+    return after(s, p, m);
   },
-  press: async (p, { key }, s) => { await p.keyboard.press(key); await sleep(500); return snapshot(s, p); },
-  upload: async (p, { paths, ...a }, s) => {
+  press: async (p, { key, show: m }, s) => { await p.keyboard.press(key); await sleep(500); return after(s, p, m); },
+  upload: async (p, { paths, show: m, ...a }, s) => {
     const [chooser] = await Promise.all([p.waitForEvent('filechooser', { timeout: 10000 }), locate(p, a).click()]);
     await chooser.setFiles(paths);
     await sleep(1500);
-    return snapshot(s, p);
+    return after(s, p, m);
   },
   read: async (p, a) => hasTarget(a) ? locate(p, a).innerText() : p.locator('body').innerText(),
-  wait: async (p, { seconds, until_text }, s) => {
-    if (until_text) await p.getByText(until_text).first().waitFor({ timeout: seconds * 1000 }).catch(() => {});
+  wait: async (p, { seconds, until_text, show: m }, s) => {
+    if (until_text) await p.getByText(until_text).first().waitFor({ timeout: seconds * 1000 }).catch(() => {
+      throw new Error(`"${until_text}" did not appear within ${seconds} s.`);
+    });
     else await sleep(seconds * 1000);
-    return snapshot(s, p);
+    return after(s, p, m);
   },
   download: async (p, { save_dir, ...a }) => {
     const [dl] = await Promise.all([p.waitForEvent('download', { timeout: 60000 }), locate(p, a).click()]);
@@ -211,32 +259,49 @@ const actions = {
 };
 
 // Saved shortcuts: { name: { description, params: { param: description }, steps: [{ action, ...args }] } }.
-// "{{param}}" in any step string is replaced by the argument.
+// "{{param}}" in any step string is replaced by the argument. A step's "expect" is text that must be on the
+// page after it, so a shortcut fails loudly instead of returning the wrong page.
 const readShortcuts = site => existsSync(site.shortcutFile) ? JSON.parse(readFileSync(site.shortcutFile, 'utf8')) : {};
 
+// Problems that would only show when the shortcut runs: unknown actions, refs, undeclared params.
+function checkShortcut({ params = {}, steps }) {
+  steps.forEach(({ action, ...a }, i) => {
+    const at = `Step ${i + 1} (${action})`;
+    if (!actions[action]) throw new Error(`${at}: use one of ${stepNames.join(', ')}.`);
+    if (a.ref) throw new Error(`${at}: refs like "${a.ref}" only last until the page changes. Use role and name instead.`);
+    for (const [, k] of JSON.stringify(a).matchAll(/\{\{(\w+)\}\}/g))
+      if (!(k in params)) throw new Error(`${at} uses {{${k}}}, which is not in params.`);
+  });
+}
+
 async function runSteps(site, steps, args) {
-  const fill = v => typeof v === 'string' ? v.replace(/\{\{(\w+)\}\}/g, (_, k) => args[k] ?? '')
-    : Array.isArray(v) ? v.map(fill) : v;
+  const fill = v => typeof v === 'string' ? v.replace(/\{\{(\w+)\}\}/g, (_, k) => {
+    if (args[k] === undefined) throw new Error(`missing argument "${k}"`);
+    return args[k];
+  }) : Array.isArray(v) ? v.map(fill) : v;
   const p = await getPage(site);
   const reads = [];
   let last = '';
-  for (const [i, { action, ...a }] of steps.entries()) {
+  for (const [i, { action, expect, ...a }] of steps.entries()) {
     try {
       if (!actions[action]) throw new Error(`unknown action "${action}"`);
-      last = await actions[action](p, Object.fromEntries(Object.entries(a).map(([k, v]) => [k, fill(v)])), site);
+      last = await actions[action](p, { show: 'none', ...Object.fromEntries(Object.entries(a).map(([k, v]) => [k, fill(v)])) }, site);
+      if (expect) await p.getByText(fill(expect)).first().waitFor({ timeout: 10000 }).catch(() => {
+        throw new Error(`expected "${fill(expect)}" on the page, but it is not there (URL: ${p.url()})`);
+      });
     } catch (e) {
       throw new Error(`Step ${i + 1} (${action}) failed: ${e.message}\nThe site may have changed: do it with the web_* tools, then save the shortcut again.`);
     }
     if (action === 'read') reads.push(last);
   }
-  return reads.length ? reads.join('\n\n') : last;
+  return reads.length ? reads.join('\n\n') : last === 'Done.' ? snapshot(site, p) : last;
 }
-
 // MCP server.
 
-const server = new McpServer({ name: 'anysite', version: '0.1.1' }, {
+const server = new McpServer({ name: 'anysite', version: VERSION }, {
   instructions: 'Use websites through a real Chrome that is signed in as the user; each site has its own browser profile. ' +
-    'Call web_snapshot first, then act on elements by role and name from it, and snapshot again after each action. ' +
+    'Call web_snapshot first, then act on elements by their ref (e.g. e12) or role and name. After an action you get ' +
+    'only what changed on the page; call web_snapshot when you need all of it. ' +
     'Pass `site` as a site name or a domain: any domain works, not only the ones already set up. ' +
     'If a page asks the user to sign in, call web_login and wait for the user to say they are done. ' +
     'Prefer a site\'s own tools (named <site>_...) when one fits. When a sequence of steps works and is likely to be ' +
@@ -277,19 +342,24 @@ const siteArg = z.string().optional().describe('Site name or domain, e.g. gemini
 const web = (name, description, schema, fn) => tool(`web_${name}`, description, { site: siteArg, ...schema },
   async ({ site, ...a }) => { const s = await useSite(site); return fn(await getPage(s), a, s); });
 
-web('snapshot', 'Accessibility tree of the site\'s current page: roles, names and text of every element. ' +
-  'Give role/name to show only that part of the page.', target, actions.snapshot);
+web('snapshot', 'Accessibility tree of the site\'s current page: roles, names and text of every element, each with a ' +
+  'ref (e.g. [ref=e12]) to pass to other tools. Give ref or role/name to show only that part of the page, or depth ' +
+  'to see only the top levels of a big page.',
+  { ...target, depth: z.number().int().min(1).optional().describe('Only this many levels deep') }, actions.snapshot);
 web('open', 'Go to a URL (absolute, or relative to the site; default: the site\'s home) and return the snapshot.',
-  { url: z.string().optional() }, actions.open);
-web('click', 'Click an element found by role/name (or text). Returns the new snapshot.', target, actions.click);
-web('type', 'Fill a text field found by role/name (or label/placeholder), optionally pressing Enter.',
-  { ...target, value: z.string(), submit: z.boolean().optional() }, actions.type);
-web('press', 'Press a key or chord on the focused element, e.g. Enter, Escape, Tab.', { key: z.string() }, actions.press);
+  { url: z.string().optional(), show }, actions.open);
+web('click', 'Click an element found by ref, role/name or text. Returns what changed on the page.',
+  { ...target, show }, actions.click);
+web('type', 'Fill a text field found by ref, role/name or label/placeholder, optionally pressing Enter. ' +
+  'Returns what changed on the page.',
+  { ...target, value: z.string(), submit: z.boolean().optional(), show }, actions.type);
+web('press', 'Press a key or chord on the focused element, e.g. Enter, Escape, Tab.', { key: z.string(), show }, actions.press);
 web('upload', 'Click an element that opens a file picker (e.g. an upload button) and give it local files.',
-  { ...target, paths: z.array(z.string()) }, actions.upload);
+  { ...target, paths: z.array(z.string()), show }, actions.upload);
 web('read', 'Visible text of the page (or of one element), e.g. to read a full reply.', target, actions.read);
-web('wait', 'Wait for the page to settle, e.g. while something is generating.',
-  { seconds: z.number().min(0).max(120), until_text: z.string().optional().describe('Stop early once this text appears') },
+web('wait', 'Wait for the page to settle, e.g. while something is generating. With until_text, fails if the text ' +
+  'has not appeared in time.',
+  { seconds: z.number().min(0).max(120), until_text: z.string().optional().describe('Stop early once this text appears'), show },
   actions.wait);
 web('download', 'Click an element that downloads a file and save it. ' +
   `Saved to ${DOWNLOADS} unless save_dir is given. Returns the saved path.`,
@@ -302,28 +372,49 @@ tool('web_login', 'Open a normal Chrome window on the site so the user can sign 
   { site: z.string() }, async ({ site }) => {
     const s = await useSite(site);
     await login(s);
-    return `A Chrome window opened on ${s.url}. Ask the user to sign in there, then quit that window ` +
-      '(Cmd+Q on a Mac, close all its windows elsewhere) and tell you. The login is kept for next time.';
+    return `A Chrome window opened on ${s.url}. Ask the user to sign in there, then ${QUIT}, ` +
+      'and tell you. The login is kept for next time.';
   });
 
 const stepNames = Object.keys(actions);
 tool('web_save_shortcut', 'Save a sequence of steps that worked as a new tool named <site>_<name>, available now and in ' +
   'later sessions. Each step is { action, ...arguments of the web_<action> tool }, e.g. ' +
   '{"action":"type","role":"textbox","name":"Search","value":"{{query}}","submit":true}. "{{param}}" is replaced by ' +
-  'the argument. The tool returns the text of its "read" steps, or the last step\'s result if there are none. ' +
-  'Saving under an existing name replaces it.',
+  'the argument. Find elements by role and name (refs do not last). Add "expect":"some text" to a step to make the ' +
+  'shortcut fail if that text is not on the page afterwards. The tool returns the text of its "read" steps, or the ' +
+  'final page if there are none. The steps are run once with test_args before saving, so a broken shortcut is ' +
+  'not saved. Saving under an existing name replaces it.',
   { site: z.string(), name: z.string().regex(/^[a-z][a-z0-9_]*$/), description: z.string(),
     params: z.record(z.string(), z.string()).optional().describe('Parameter name -> description'),
-    steps: z.array(z.object({ action: z.enum(stepNames) }).catchall(z.any())).min(1)
-      .describe(`Actions: ${stepNames.join(', ')}`) },
-  async ({ site, name, ...sc }) => {
+    steps: z.array(z.object({ action: z.enum(stepNames), expect: z.string().optional() }).catchall(z.any())).min(1)
+      .describe(`Actions: ${stepNames.join(', ')}`),
+    test_args: z.record(z.string(), z.string()).optional().describe('Values for params to use in the test run'),
+    verify: z.boolean().optional().describe('Run the steps once before saving (default true). Set false only when ' +
+      'running them again would do something twice, such as sending a message or buying something') },
+  async ({ site, name, test_args = {}, verify = true, ...sc }) => {
     const s = await useSite(site);
+    checkShortcut(sc);
+    let note = '';
+    if (verify) {
+      const missing = Object.keys(sc.params || {}).filter(k => test_args[k] === undefined);
+      if (missing.length) throw new Error(`Give test_args for ${missing.join(', ')} so the steps can be tried, or set verify: false.`);
+      const out = await runSteps(s, sc.steps, test_args);
+      note = ` Test run worked and returned:\n${out.slice(0, 500)}${out.length > 500 ? '…' : ''}`;
+    }
     const all = { ...readShortcuts(s), [name]: sc };
     mkdirSync(join(HOME, 'sites'), { recursive: true });
     writeFileSync(s.shortcutFile, JSON.stringify(all, null, 2) + '\n');
     addShortcut(s, name, sc);
-    return `Saved ${s.prefix}_${name} in ${s.shortcutFile}.`;
+    return `Saved ${s.prefix}_${name} in ${s.shortcutFile}.${note}`;
   });
+
+tool('web_list_shortcuts', 'List the shortcuts saved for a site, with their steps.', { site: z.string() }, async ({ site }) => {
+  const s = await useSite(site);
+  const all = readShortcuts(s);
+  if (!Object.keys(all).length) return `No shortcuts saved for ${s.name} yet.`;
+  return `Shortcuts for ${s.name} (${s.shortcutFile}):\n` + Object.entries(all).map(([n, sc]) =>
+    `\n${s.prefix}_${n}: ${sc.description}\n${JSON.stringify({ params: sc.params || {}, steps: sc.steps }, null, 2)}`).join('\n');
+});
 
 tool('web_delete_shortcut', 'Delete a saved shortcut.', { site: z.string(), name: z.string() }, async ({ site, name }) => {
   const s = await useSite(site);
@@ -339,18 +430,21 @@ tool('web_delete_shortcut', 'Delete a saved shortcut.', { site: z.string(), name
 // CLI.
 
 const [cmd, ...rest] = process.argv.slice(2);
+if (cmd === '--version' || cmd === '-v') { console.log(VERSION); process.exit(0); }
 if (cmd === '--help' || cmd === '-h') {
   console.log(`anysite-mcp [site ...]   Serve MCP over stdio. Sites are pack names (${packNames().join(', ')}) or domains.
                          With none, serves every site you have signed in to.
 anysite-mcp login <site> Open the site in its own Chrome profile to sign in once.
-Data: ${HOME}`);
+anysite-mcp --version    Print the version (${VERSION}).
+Data: ${HOME}
+Environment: ANYSITE_HOME, ANYSITE_CHROME, ANYSITE_CHROME_ARGS, ANYSITE_HEADLESS=1, ANYSITE_DOWNLOADS`);
   process.exit(0);
 }
 if (cmd === 'login') {
   if (!rest[0]) { console.error('Usage: anysite-mcp login <site>'); process.exit(1); }
   const site = await loadSite(rest[0]);
   await login(site);
-  console.log(`Sign in to ${site.name} in the window that opened, then quit that window (Cmd+Q on a Mac).`);
+  console.log(`Sign in to ${site.name} in the window that opened, then ${QUIT}.`);
   process.exit(0);
 }
 const profiles = join(HOME, 'profiles');

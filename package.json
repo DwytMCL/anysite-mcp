@@ -1,7 +1,8 @@
 {
   "name": "anysite-mcp",
-  "version": "0.1.1",
-  "description": "Turn any website into MCP tools for Claude and other AI agents: a real Chrome signed in as you, one profile per site, and shortcuts the agent saves as new tools",
+  "version": "0.2.0",
+  "description": "Turn any website into MCP tools for Claude, Cursor and other AI agents: a real Chrome signed in as you, one profile per site, and shortcuts the agent learns and saves as new tools",
+  "mcpName": "io.github.DwytMCL/anysite-mcp",
   "main": "server.js",
   "type": "module",
   "bin": {
@@ -10,8 +11,32 @@
   "scripts": {
     "test": "node selfcheck.js"
   },
-  "keywords": ["mcp", "model-context-protocol", "browser", "automation", "claude", "playwright", "accessibility", "notebooklm", "gemini"],
+  "keywords": [
+    "mcp",
+    "mcp-server",
+    "model-context-protocol",
+    "browser",
+    "browser-automation",
+    "web-automation",
+    "automation",
+    "ai-agent",
+    "ai-agents",
+    "claude",
+    "claude-code",
+    "cursor",
+    "chrome",
+    "playwright",
+    "accessibility",
+    "notebooklm",
+    "gemini",
+    "web-scraping",
+    "no-api-key"
+  ],
   "license": "MIT",
+  "homepage": "https://github.com/DwytMCL/anysite-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/DwytMCL/anysite-mcp/issues"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/DwytMCL/anysite-mcp.git"
@@ -19,7 +44,13 @@
   "engines": {
     "node": ">=18"
   },
-  "files": ["server.js", "sites/", "README.md", "LICENSE"],
+  "files": [
+    "server.js",
+    "sites/",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",
     "playwright-core": "^1.64.1",

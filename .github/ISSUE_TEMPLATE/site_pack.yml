@@ -1,0 +1,23 @@
+name: Site pack request
+description: Ask for built-in tools for a website
+labels: [site-pack]
+body:
+  - type: input
+    id: site
+    attributes:
+      label: Website
+      placeholder: mail.google.com
+    validations:
+      required: true
+  - type: textarea
+    id: jobs
+    attributes:
+      label: What should the agent be able to do there?
+      description: One line per job, e.g. "search my inbox and return subject, sender, date".
+    validations:
+      required: true
+  - type: textarea
+    id: shortcuts
+    attributes:
+      label: Shortcuts you already have (optional)
+      description: Paste from `~/.anysite-mcp/sites/<site>.json` if you've saved some that work.

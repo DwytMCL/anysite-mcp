@@ -1,0 +1,27 @@
+name: Bug report
+description: Something doesn't work
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you asked the agent to do, what it called, and what came back. Paste the error text.
+    validations:
+      required: true
+  - type: input
+    id: site
+    attributes:
+      label: Site
+      placeholder: github.com, gemini, notebooklm, …
+  - type: input
+    id: env
+    attributes:
+      label: Setup
+      description: anysite-mcp version (`npx anysite-mcp --version`), OS, Chrome version, MCP client
+      placeholder: 0.2.0, macOS 26, Chrome 142, Claude Code
+    validations:
+      required: true
+  - type: markdown
+    attributes:
+      value: Please don't paste cookies, tokens or anything from `~/.anysite-mcp/profiles`.
