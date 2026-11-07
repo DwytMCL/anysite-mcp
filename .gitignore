@@ -2,3 +2,4 @@ node_modules/
 .DS_Store
 # Browser profiles hold logins: they live in ~/.anysite-mcp, never here.
 profiles/
+_site/

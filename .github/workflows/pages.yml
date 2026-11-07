@@ -1,13 +1,15 @@
-name: Shortcuts Library site
+name: Shortcut Library site
 
 on:
   push:
     branches: [main]
     paths:
+      - "library/**"
       - "shortcuts-library/**"
       - ".github/workflows/pages.yml"
   pull_request:
     paths:
+      - "library/**"
       - "shortcuts-library/**"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
@@ -18,44 +20,41 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages
+  group: pages-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  validate:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Check shortcuts-library/shortcuts.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # The same check "npx anysite-mcp add" runs, against each library file, in a throwaway home.
+      - name: Check library files
+        shell: bash
         run: |
-          node -e '
-            const list = JSON.parse(require("fs").readFileSync("shortcuts-library/shortcuts.json", "utf8"));
-            if (!Array.isArray(list)) throw new Error("shortcuts.json must be an array");
-            const ids = new Set();
-            list.forEach((s, i) => {
-              const where = "entry " + i + " (" + (s.id || "no id") + ")";
-              for (const k of ["id", "title", "description", "platform"])
-                if (!s[k] || typeof s[k] !== "string") throw new Error(where + ": missing " + k);
-              if (!s.keys && !s.link) throw new Error(where + ": needs keys or link");
-              if (s.link && !/^https?:\/\//.test(s.link)) throw new Error(where + ": link must be http(s)");
-              if (ids.has(s.id)) throw new Error(where + ": duplicate id");
-              ids.add(s.id);
-            });
-            console.log("OK: " + list.length + " shortcuts");
-          '
+          export ANYSITE_HOME="$(mktemp -d)"
+          for f in library/*.json; do
+            node server.js add "$(basename "$f" .json)" --from "$f"
+          done
+      - name: Build site
+        run: node shortcuts-library/build.js
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
 
   deploy:
     if: github.event_name != 'pull_request'
-    needs: validate
+    needs: build
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: shortcuts-library
       - id: deployment
         uses: actions/deploy-pages@v4

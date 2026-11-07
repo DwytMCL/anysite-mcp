@@ -1,4 +1,4 @@
-/* Shortcuts Library: plain, fast, old-web styling. */
+/* anysite-mcp Shortcut Library: plain, fast, old-web styling. */
 
 body {
   margin: 0;
@@ -109,8 +109,8 @@ h3 { font-size: 14px; margin: 16px 0 6px; }
   border-bottom: 1px solid #e2e2e2;
 }
 #results tbody tr:nth-child(even) td { background: #fafafa; }
-#results .col-keys { width: 30%; }
-#results .col-platform { width: 14%; }
+#results .col-keys { width: 36%; }
+#results .col-platform { width: 16%; }
 
 .s-title { font-weight: bold; }
 .s-desc { color: #444; margin-top: 2px; }
@@ -201,6 +201,37 @@ a.button:visited { color: #222; }
   background: #f7f7f7;
 }
 #footer p { margin: 0; }
+
+/* Shortcut details */
+.s-tool { font-family: Consolas, Monaco, "Courier New", monospace; font-weight: bold; }
+.s-params { margin: 4px 0 0; padding: 0; list-style: none; font-size: 12px; }
+.s-params li { margin: 1px 0; }
+.s-params code { background: #f3f3f3; border: 1px solid #ddd; padding: 0 3px; }
+.opt { color: #888; font-size: 11px; }
+details { margin-top: 4px; font-size: 12px; }
+summary { cursor: pointer; color: #1a4f9c; }
+.steps { margin: 4px 0 0 20px; padding: 0; }
+.steps li { margin: 1px 0; }
+.steps .act { font-weight: bold; }
+.steps .val { font-family: Consolas, Monaco, "Courier New", monospace; font-size: 11px; word-break: break-all; }
+.raw { background: #f8f8f8; border: 1px solid #ddd; padding: 6px; margin: 4px 0 0; overflow-x: auto; font-size: 11px; }
+
+/* Install commands */
+.cmd { display: block; background: #f8f8f8; border: 1px solid #ddd; padding: 2px 4px; margin-bottom: 3px; word-break: break-all; font-size: 11px; }
+.copy-cmd { font-size: 11px; padding: 0 6px; }
+.copied { color: #2a7a2a; font-size: 11px; margin-left: 4px; }
+.install-all { background: #f7f9fc; border: 1px solid #cfd8e6; padding: 4px 8px; margin: 0 0 10px; }
+.install-all code { background: #fff; border: 1px solid #ddd; padding: 0 4px; }
+
+#how ol { margin: 6px 0; padding-left: 22px; }
+#how li { margin: 3px 0; }
+#how code, #add p code { background: #f3f3f3; border: 1px solid #ddd; padding: 0 3px; }
+
+.form-table textarea#f-json { max-width: 560px; font-family: Consolas, Monaco, "Courier New", monospace; font-size: 12px; }
+label.check { font-size: 12px; }
+.error-box { background: #fff0f0; border: 1px solid #e3a3a3; color: #900; padding: 6px 10px; margin: 8px 0; }
+.error-box ul { margin: 4px 0 0; padding-left: 20px; }
+.warn { color: #8a5a00; }
 
 /* Small screens: stack the table rows. */
 @media (max-width: 600px) {

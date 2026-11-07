@@ -1,72 +1,49 @@
-# Shortcuts Library
+# Shortcut Library site
 
-A small, community-maintained list of keyboard shortcuts and workflows for Mac, iOS Shortcuts, Windows, Linux, VS Code, Vim, Blender and browsers.
-
-It is a plain static site: one HTML page, one stylesheet, one script and one JSON file. No build step, no framework, no tracking. It lives in this folder of the anysite-mcp repo and is published with GitHub Pages.
+The web page for the shared [anysite-mcp shortcuts](../library/): browse them, copy the `add` command, and share your own.
 
 **Live site:** https://dwytmcl.github.io/anysite-mcp/
+
+It is a plain static page: HTML, one stylesheet and one script, no framework and no tracking. The shortcuts
+themselves stay in [`library/<site>.json`](../library/); the page reads an index built from those files.
 
 ## Directory structure
 
 ```
 anysite-mcp/
-├── shortcuts-library/
-│   ├── index.html        Page layout: search, category tags, results table, add form
-│   ├── style.css         Plain styling (system fonts, borders, no gradients)
-│   ├── app.js            Loads the data, search/filter, builds submissions
-│   ├── shortcuts.json    The shortcuts themselves
+├── library/                 The shortcuts, one file per site (the data)
+│   ├── github.com.json
+│   └── ...
+├── shortcuts-library/       The site
+│   ├── index.html           Search, site tags, shortcut list, Share form
+│   ├── style.css            Plain styling (system fonts, borders, no gradients)
+│   ├── app.js               Lists and filters shortcuts, checks shared JSON, builds issue and PR links
+│   ├── build.js             Copies the page into _site/ and writes _site/library/index.json
 │   └── README.md
 └── .github/
-    ├── workflows/pages.yml                    Validates shortcuts.json and deploys this folder to Pages
-    └── ISSUE_TEMPLATE/shortcut_submission.md  Issue template for submissions
+    ├── workflows/pages.yml              Checks library files, builds and deploys to Pages
+    └── ISSUE_TEMPLATE/shortcut_share.yml Issue form the Share button fills in
 ```
 
-Nothing in this folder is part of the npm package (`package.json` only ships `server.js` and `sites/`).
+`_site/` is build output and is not committed. Nothing here is part of the npm package.
 
-## Adding a shortcut
+## What the page does
 
-Use the **Add a shortcut** form at the bottom of the site. It builds a JSON entry and gives you two options:
-
-1. **Open a GitHub issue**: opens a new issue with the entry already filled in. A maintainer adds it.
-2. **Copy the JSON**: edit [`shortcuts.json`](shortcuts.json) on GitHub, paste the entry into the list, and open a pull request.
-
-Each entry looks like this:
-
-```json
-{
-  "id": "vs-code-command-palette",
-  "title": "Command Palette",
-  "description": "Run any command by name. Use Cmd+Shift+P on macOS.",
-  "platform": "VS Code",
-  "keys": "Ctrl+Shift+P",
-  "link": "https://code.visualstudio.com/docs/getstarted/keybindings",
-  "author": "your-github-name"
-}
-```
-
-`id`, `title`, `description` and `platform` are required, plus at least one of `keys` or `link`. In `keys`, use `+` for keys pressed together and a space between steps (`Ctrl+K Ctrl+S`, `g g`). The workflow checks every pull request that touches this folder for missing fields and duplicate ids.
+- Lists every shortcut as its tool name (`github_com_trending`), description, parameters and readable steps, with the raw JSON one click away.
+- Search covers site, name, description and parameter names. Site tags filter by site and show the command to add all of a site's shortcuts. Both are kept in the URL (`?q=wiki&site=en.wikipedia.org`).
+- Each shortcut has a Copy button for its install command: `npx -y anysite-mcp add <site>/<name>`.
+- **Share a shortcut**: paste the JSON from `web_list_shortcuts`. The page checks it with the same rules as `anysite-mcp add` (name format, description, known step actions, no refs, every `{{param}}` declared), warns about emails and tokens, then offers a pre-filled issue or a pull request link to `library/<site>.json`.
 
 ## Run it locally
 
-The page loads `shortcuts.json` with `fetch`, so open it through a local server rather than as a file:
-
 ```
-cd shortcuts-library
-python3 -m http.server 8000
+node shortcuts-library/build.js
+cd _site && python3 -m http.server 8000
 ```
 
 Then visit http://localhost:8000.
 
-## Deploy to GitHub Pages
+## Deploy
 
-1. Merge this folder and `.github/workflows/pages.yml` into `main`.
-2. In the repository, go to **Settings > Pages** and set **Source** to **GitHub Actions**.
-3. Run the **Shortcuts Library site** workflow from the **Actions** tab, or push any change under `shortcuts-library/`. The site goes live at `https://dwytmcl.github.io/anysite-mcp/`.
-
-Optional: create a `shortcut` label under **Issues > Labels** so submitted issues are tagged automatically.
-
-If the repository is renamed or moved, change `REPO` at the top of `app.js` so the issue links point to the right place.
-
-## License
-
-Code: MIT, like the rest of this repo. Shortcut descriptions: CC BY 4.0.
+1. In the repository, go to **Settings > Pages** and set **Source** to **GitHub Actions** (once).
+2. Any push to `main` that touches `library/` or `shortcuts-library/` runs the **Shortcut Library site** workflow, which checks each library file with `anysite-mcp add --from`, builds `_site/` and deploys it. You can also run it by hand from the **Actions** tab.

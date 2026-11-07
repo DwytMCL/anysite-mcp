@@ -174,7 +174,7 @@ parameter, with what you typed as its default. The agent can do the same with `w
 pages, checks that the element of the first step that would act is there, and repairs what it can. It never clicks
 or types.
 
-**Shared shortcuts** live in [`library/`](library/). `npx -y anysite-mcp add github.com` adds them; send yours in a
+**Shared shortcuts** live in [`library/`](library/), and you can browse them on the [Shortcut Library site](https://dwytmcl.github.io/anysite-mcp/). `npx -y anysite-mcp add github.com` adds them; send yours in a
 pull request.
 
 ## Write a pack
