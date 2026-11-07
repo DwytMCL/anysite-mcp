@@ -233,14 +233,18 @@ npx -y anysite-mcp permissions github.com --allow github.com,githubusercontent.c
 npx -y anysite-mcp permissions github.com                      # show the current settings
 ```
 
-- **Read-only** blocks clicks on anything labelled like send, post, buy, pay, delete, remove, reply, share, upload
-  and so on, pressing Enter in fields other than search boxes, uploads, and pack tools that change things.
+- **Read-only** judges each click by what the element does. Links only open pages, so they're allowed, unless the
+  address logs out, deletes or unsubscribes. Buttons that submit a POST form are blocked whatever they're called.
+  Other buttons are blocked when labelled like send, post, buy, pay, delete, remove, reply, share and so on. Enter
+  in a field is allowed when it submits a GET form (searches do) or, outside a form, when the field is a search box.
+  Uploads and pack tools that change things are blocked too.
 - **Confirm** asks you in your MCP client before those same actions. Clients that can't ask make the action fail.
 - **Allowed domains**: `web_open` only goes to the site's own domain (`gemini.google.com` may open any
   `google.com` page) unless you allow more. This keeps a page from steering the agent to another site with this
   profile's cookies.
 
-These are guard rails that work on button and field names, not a sandbox, so still only sign in where you're happy
+These are guard rails, not a sandbox: a button that saves something through script, with a plain label like "Go",
+can get past them, so still only sign in where you're happy
 for the agent to act. Settings live in `~/.anysite-mcp/settings.json`. Profiles hold your cookies: never share or
 commit `~/.anysite-mcp/profiles`.
 

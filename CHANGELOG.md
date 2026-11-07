@@ -19,6 +19,16 @@ Shortcuts that repair themselves, learning by watching, and limits you set.
   or URL), and `web_list_shortcuts` with a name gives JSON ready to share.
 - **`anysite-mcp doctor`** checks saved shortcuts without clicking or typing anything, and repairs what it can.
 - Calls on the same site now wait for each other instead of acting on one tab at the same time.
+- Steps check that the element they act on is visible, and if an action still fails because the page swapped
+  the element (a search box that becomes a combobox after loading), the step is repaired and tried again.
+- A step with only a role (e.g. `{ "role": "searchbox" }`) can be repaired when one element of a kindred role is
+  on the page.
+- `extract` fields take the first match that has something in it (the titled link, not the thumbnail before it);
+  unknown roles are an error with a suggestion; a field that is empty on every row gets a note; it waits a moment
+  for lists that arrive after the page.
+- Clicks, choices and Enter wait for a page they start loading.
+- Read-only judges a click by what the element does: links that just open pages are allowed, POST form buttons
+  are blocked whatever their label.
 - Pack tools can be marked `writes: true` (NotebookLM's `add_source` and `create_notebook` are), which read-only
   blocks and confirm asks about.
 

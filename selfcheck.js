@@ -21,9 +21,27 @@ const page = () => `<!doctype html><title>Test shop</title><h1>Test shop</h1>
 <${v2 ? 'a href="#"' : 'button'} onclick="document.querySelector('#out').textContent = 'Results for ' + document.querySelector('input').value">Go</${v2 ? 'a' : 'button'}>
 <button onclick="document.querySelector('#out').textContent = 'Sent'">Send message</button>
 <p id="out"></p><ul><li>Apples <a href="/apples">more</a></li><li>Pears <a href="/pears">more</a></li></ul><a href="/about">About</a>`;
+const fruit = `<ul>${['Apples', 'Pears'].map(f => `<li><a href="/img/${f}"><img alt="" src="data:,"></a>
+  <a href="/${f}">${f}</a> fresh</li>`).join('')}</ul>`;
+const pages = {
+  '/about': '<title>About</title><main><p>About this shop</p></main>',
+  // Like many sites, a search box that script hides and replaces with a combobox once the page has loaded.
+  '/swap': `<title>Swap</title><input type="search" aria-label="Find"><p id="out"></p><script>
+    const c = document.createElement('input'); c.setAttribute('role', 'combobox'); c.setAttribute('aria-label', 'Find');
+    c.oninput = () => out.textContent = 'You typed ' + c.value;
+    document.querySelector('[type=search]').style.display = 'none'; out.before(c);</script>`,
+  '/fruit': `<title>Fruit</title>${fruit}`,
+  // Choosing a sort order loads another page a moment later, and its list arrives a moment after that.
+  '/sort': `<title>Sort</title><select aria-label="Sort" onchange="setTimeout(() => location.href = '/sorted', 300)">
+    <option>Name</option><option>Price</option></select>`,
+  '/sorted': `<title>Sorted</title><div id="list"></div><script>setTimeout(() => list.innerHTML = ${JSON.stringify(fruit)}, 700)</script>`,
+  '/forms': `<title>Forms</title><a href="/signup">Create account</a><a href="/logout">Leave</a>
+    <form method="post" action="/order"><button>Continue</button></form>
+    <form action="/search"><input name="q" aria-label="Keyword"></form>`,
+};
 const http = createServer((req, res) => {
   res.writeHead(200, { 'content-type': 'text/html' });
-  res.end(req.url === '/about' ? '<title>About</title><main><p>About this shop</p></main>' : page());
+  res.end(pages[req.url.split('?')[0]] ?? page());
 }).listen(0, '127.0.0.1');
 await new Promise(r => http.once('listening', r));
 const site = `localhost:${http.address().port}`;
@@ -76,6 +94,21 @@ try {
     assert.deepEqual(rows, [{ url: '/apples' }, { url: '/pears' }]);
   });
 
+  await step('extract fields skip empty matches and flag misspelled roles', async () => {
+    await call('web_open', { site, url: '/fruit' });
+    const rows = JSON.parse(await call('web_extract', { site, role: 'listitem',
+      fields: { title: { role: 'link' }, url: { role: 'link', attr: 'href' } } }));
+    assert.deepEqual(rows, [{ title: 'Apples', url: '/Apples' }, { title: 'Pears', url: '/Pears' }]);
+    await fails('web_extract', { site, role: 'listitem', fields: { title: { role: 'lnk' } } }, /unknown field role "lnk"; did you mean "link"/);
+    assert.match(await call('web_extract', { site, role: 'listitem', fields: { buy: { role: 'button' } } }), /"buy" came back empty on every row/);
+  });
+
+  await step('select waits for the page it loads', async () => {
+    await call('web_open', { site, url: '/sort' });
+    await call('web_select', { site, role: 'combobox', name: 'Sort', value: 'Price' });
+    assert.equal(JSON.parse(await call('web_extract', { site, role: 'listitem' })).length, 2);
+  });
+
   await step('loud failures', async () => {
     await fails('web_wait', { site, seconds: 1, until_text: 'Never shown' }, /did not appear/);
     await fails('web_save_shortcut', { site, name: 'bad', description: 'x', steps: [{ action: 'click', ref: 'e1' }] }, /refs/);
@@ -108,11 +141,24 @@ try {
     assert.equal(await call('localhost_search', { query: 'kiwis' }), 'Results for kiwis', 'no repair needed the second time');
   });
 
+  await step('shortcuts repair elements that script replaces after loading', async () => {
+    const swap = (name, target) => call('web_save_shortcut', { site, name, description: 'Type into Find', verify: false,
+      params: { q: 'Text' }, steps: [{ action: 'open', url: '/swap' }, { action: 'type', ...target, value: '{{q}}' },
+        { action: 'read', text: 'You typed' }] });
+    await swap('find', { role: 'searchbox', name: 'Find' });
+    const out = await call('localhost_find', { q: 'figs' });
+    assert.match(out, /^You typed figs/);
+    assert.match(out, /searchbox "Find" is now combobox "Find"/);
+    await swap('find_by_role', { role: 'searchbox' });
+    assert.match(await call('localhost_find_by_role', { q: 'nuts' }), /^You typed nuts[\s\S]*searchbox is now combobox "Find"/);
+  });
+
   await step('doctor checks shortcuts without acting', async () => {
     assert.match(await cli('doctor', site), /✓ localhost_search \(checked steps 1–2/);
   });
 
   await step('permissions', async () => {
+    await call('web_open', { site, url: '/' });
     settings({ read_only: true });
     await fails('web_click', { site, role: 'button', name: 'Send message' }, /read-only/);
     await call('web_type', { site, role: 'textbox', name: 'Product search', value: 'x', submit: true });
@@ -123,6 +169,15 @@ try {
     assert.match(await call('web_click', { site, role: 'button', name: 'Send message' }), /Sent/);
     settings({});
     await fails('web_open', { site, url: 'https://example.org/' }, /outside the domains allowed/);
+    // Read-only goes by what an element does: links open pages, POST forms change things whatever the label.
+    settings({ read_only: true });
+    await call('web_open', { site, url: '/forms' });
+    assert.match(await call('web_click', { site, role: 'link', name: 'Create account' }), /signup/);
+    await call('web_open', { site, url: '/forms' });
+    await fails('web_click', { site, role: 'link', name: 'Leave' }, /read-only/);
+    await fails('web_click', { site, role: 'button', name: 'Continue' }, /read-only/);
+    await call('web_type', { site, role: 'textbox', name: 'Keyword', value: 'pears', submit: true });
+    settings({});
     assert.match(await cli('permissions', site, '--read-only', '--allow', 'localhost,example.org'), /read-only.*may open localhost, example\.org/s);
     settings({});
   });

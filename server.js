@@ -13,8 +13,8 @@ import { chromium } from 'playwright-core';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import { closest, describe, elements } from './lib/heal.js';
-import { baseDomain, hostAllowed, readSettings, RISKY, SEARCHY, writeSiteSettings } from './lib/permissions.js';
+import { checkRole, closest, describe, elements } from './lib/heal.js';
+import { baseDomain, hostAllowed, readSettings, RISKY, RISKY_HREF, SEARCHY, writeSiteSettings } from './lib/permissions.js';
 import { addEvent, parametrize, recorderScript } from './lib/recorder.js';
 
 const HOME = process.env.ANYSITE_HOME || join(homedir(), '.anysite-mcp');
@@ -140,6 +140,8 @@ const show = z.enum(['changes', 'full', 'none']).optional()
 // `all` returns every match instead of the first (or nth).
 function locate(p, { ref, role, name, text: t, exact, nth, within }, all = false) {
   if (ref) return p.getByRef(ref.replace(/^\[?(ref=)?|\]$/g, ''));
+  checkRole(role);
+  checkRole(within, 'within role');
   const root = within ? p.getByRole(within).last() : p;
   const loc = role ? root.getByRole(role, name ? { name, exact } : {})
     : name ? root.getByLabel(name, { exact }).or(root.getByPlaceholder(name, { exact }))
@@ -240,19 +242,82 @@ async function confirmAction(site, what) {
   if (r.action !== 'accept') throw new Error(`The user said no to: ${what}. Don't try another way.`);
 }
 
-// verb: click, submit (Enter in a field), upload, or write (a pack tool that changes things).
-async function permit(site, verb, label = '') {
-  const risky = verb === 'upload' || verb === 'write' || (verb === 'submit' ? !SEARCHY.test(label) : RISKY.test(label));
-  if (!risky) return;
+// Stop or ask before something that changes things (`what`, e.g. 'click "Send"'), per the site's settings.
+async function permit(site, what) {
   const { read_only, confirm } = perms(site);
-  const what = verb === 'write' ? label : `${verb}${label ? ` "${label.slice(0, 60)}"` : ''}`;
   if (read_only) throw new Error(`${site.name} is read-only, so the agent can't ${what}. ` +
     `The user can change that with: anysite-mcp permissions ${site.name} --read-write`);
   if (confirm) await confirmAction(site, what);
 }
 
-const labelOf = loc => loc.evaluate(e => (e.getAttribute('aria-label') || e.getAttribute('placeholder') ||
-  e.innerText || e.value || e.getAttribute('title') || '').replace(/\s+/g, ' ').trim().slice(0, 80)).catch(() => '');
+// What activating an element would do, judged from the element itself rather than only its words: a real link
+// just opens a page (unless its address logs out, deletes and the like); a button that submits a POST form changes
+// something whatever it is called; other buttons go by their label. Enter in a field submits its form, or, outside a
+// form, counts as a search only in fields labelled like one.
+const effectOf = (loc, enter = false) => loc.evaluate((e, enter) => {
+  const el = enter ? e : e.closest('a[href], button, input, select, textarea, summary, [role]') || e;
+  const label = (el.getAttribute('aria-label') || el.getAttribute('placeholder') || el.innerText || el.value ||
+    el.getAttribute('title') || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+  const form = el.form || el.closest('form');
+  const method = form ? (form.getAttribute('method') || 'get').toLowerCase() : null;
+  const href = el.tagName === 'A' ? el.getAttribute('href') || '' : '';
+  const submits = !!form && (enter || el.type === 'submit' || el.type === 'image' || (el.tagName === 'BUTTON' && !el.getAttribute('type')));
+  return { label, link: !!href && !/^\s*(javascript:|#)/i.test(href), href: el.href || '', submits, post: submits && method !== 'get' };
+}, enter).catch(() => ({ label: '', link: false, href: '', submits: false, post: false }));
+
+async function permitClick(site, loc, a = {}) {
+  const fx = await effectOf(loc);
+  const label = a.name || a.text || fx.label;
+  const risky = fx.link ? RISKY_HREF.test(fx.href) : fx.post || RISKY.test(label);
+  if (risky) await permit(site, `click "${label.slice(0, 60)}"`);
+}
+async function permitEnter(site, loc, a = {}) {
+  const fx = await effectOf(loc, true);
+  const label = a.name || a.text || fx.label;
+  const risky = fx.submits ? fx.post : !(a.role === 'searchbox' || SEARCHY.test(label));
+  if (risky) await permit(site, `submit "${label.slice(0, 60)}"`);
+}
+
+// Clicks and Enter can start loading a new page a moment later. If one starts, wait for it to load, so the next
+// step doesn't read the old page or a blank one.
+async function settled(p, fn, ms = 800) {
+  let navigated = false;
+  const seen = f => { if (f === p.mainFrame()) navigated = true; };
+  p.on('framenavigated', seen);
+  try {
+    await fn();
+    await sleep(ms);
+  } finally {
+    p.off('framenavigated', seen);
+  }
+  if (navigated) {
+    await p.waitForLoadState('load', { timeout: 20000 }).catch(() => {});
+    await p.waitForLoadState('networkidle', { timeout: 3000 }).catch(() => {});
+  }
+}
+
+// A field of an extract row: the first match inside the row that has something to give (an icon link with no text
+// is skipped in favour of the titled link after it), unless nth picks one.
+async function fieldValue(row, f, attr) {
+  const read = async loc => attr ? loc.getAttribute(attr) : (await loc.innerText()).replace(/\s+/g, ' ').trim();
+  if (!hasTarget(f)) return read(row);
+  const matches = locate(row, f, true);
+  if (f.nth !== undefined) return await matches.nth(f.nth).count() ? read(matches.nth(f.nth)) : null;
+  const n = await matches.count();
+  let firstValue = null;
+  for (let i = 0; i < n; i++) {
+    const v = await read(matches.nth(i)).catch(() => null);
+    if (v && (attr || v.trim())) {
+      if (attr) {
+        // For an attribute, still prefer an element that has a name: the titled link, not the thumbnail.
+        const named = (await matches.nth(i).innerText().catch(() => '')).trim() || await matches.nth(i).getAttribute('aria-label');
+        if (named) return v;
+        firstValue ??= v;
+      } else return v;
+    }
+  }
+  return firstValue ?? (n ? '' : null);
+}
 
 // Page actions: each is a web_* tool and a step a shortcut can use. Each returns text.
 const actions = {
@@ -268,33 +333,29 @@ const actions = {
   },
   click: async (p, { show: m, ...a }, s) => {
     const loc = locate(p, a);
-    await permit(s, 'click', a.name || a.text || await labelOf(loc));
-    await activate(loc);
-    await sleep(800);
+    await permitClick(s, loc, a);
+    await settled(p, () => activate(loc));
     return after(s, p, m);
   },
   type: async (p, { value, submit, show: m, ...a }, s) => {
     const loc = locate(p, a);
-    if (submit) await permit(s, 'submit', `${a.role === 'searchbox' ? 'search ' : ''}${a.name || a.text || await labelOf(loc)}`);
+    if (submit) await permitEnter(s, loc, a);
     await loc.fill(value, { timeout: 10000 });
-    if (submit) await loc.press('Enter');
-    await sleep(800);
+    await settled(p, () => submit && loc.press('Enter'));
     return after(s, p, m);
   },
   select: async (p, { value, show: m, ...a }, s) => {
-    await locate(p, a).selectOption(value, { timeout: 10000 });
-    await sleep(500);
+    await settled(p, () => locate(p, a).selectOption(value, { timeout: 10000 }), 500);
     return after(s, p, m);
   },
   press: async (p, { key, show: m }, s) => {
-    if (/(^|\+)Enter$/.test(key)) await permit(s, 'submit', await labelOf(p.locator(':focus')));
-    await p.keyboard.press(key);
-    await sleep(500);
+    if (/(^|\+)Enter$/.test(key)) await permitEnter(s, p.locator(':focus'));
+    await settled(p, () => p.keyboard.press(key), 500);
     return after(s, p, m);
   },
   upload: async (p, { paths, show: m, ...a }, s) => {
     const loc = locate(p, a);
-    await permit(s, 'upload', a.name || a.text || await labelOf(loc));
+    await permit(s, `upload files with "${(a.name || a.text || (await effectOf(loc)).label).slice(0, 60)}"`);
     const [chooser] = await Promise.all([p.waitForEvent('filechooser', { timeout: 10000 }), loc.click()]);
     await chooser.setFiles(paths);
     await sleep(1500);
@@ -303,25 +364,29 @@ const actions = {
   read: async (p, a) => hasTarget(a) ? locate(p, a).innerText() : p.locator('body').innerText(),
   // Rows as JSON: one per element matching the target, with `fields` looked up inside each.
   extract: async (p, { fields, limit = 50, ...a }) => {
+    for (const f of Object.values(fields || {})) checkRole(f.role, 'field role');
     const items = locate(p, a, true);
+    await items.first().waitFor({ timeout: 5000 }).catch(() => {}); // lists often arrive just after the page
     const rows = [];
     for (let i = 0, n = Math.min(await items.count(), limit); i < n; i++) {
       const it = items.nth(i);
       if (!fields) {
         rows.push(await it.evaluate(e => {
-          const link = e.matches('a[href]') ? e : e.querySelector('a[href]');
+          const links = e.matches('a[href]') ? [e] : [...e.querySelectorAll('a[href]')];
+          const link = links.find(l => l.innerText.trim()) || links[0]; // the titled link, not the thumbnail
           return { text: e.innerText.replace(/\s+/g, ' ').trim(), ...(link ? { link: link.href } : {}) };
         }));
         continue;
       }
       const row = {};
-      for (const [k, { attr, ...f }] of Object.entries(fields)) {
-        const loc = hasTarget(f) ? locate(it, f) : it;
-        row[k] = await loc.count() ? attr ? await loc.getAttribute(attr) : (await loc.innerText()).replace(/\s+/g, ' ').trim() : null;
-      }
+      for (const [k, { attr, ...f }] of Object.entries(fields)) row[k] = await fieldValue(it, f, attr);
       rows.push(row);
     }
-    return JSON.stringify(rows, null, 2);
+    const json = JSON.stringify(rows, null, 2);
+    if (!rows.length) return `${json}\n\nNote: nothing matched ${describe(a)}. Check the page with web_snapshot.`;
+    const empty = Object.keys(fields || {}).filter(k => rows.every(r => r[k] === null || r[k] === ''));
+    return empty.length ? `${json}\n\nNote: ${empty.map(k => `"${k}"`).join(', ')} came back empty on every row. ` +
+      'Check its role and name with web_snapshot on one row (give ref or role/name).' : json;
   },
   wait: async (p, { seconds, until_text, show: m }, s) => {
     if (until_text) await p.getByText(until_text).first().waitFor({ timeout: seconds * 1000 }).catch(() => {
@@ -362,6 +427,11 @@ function checkShortcut({ params = {}, steps }) {
     const at = `Step ${i + 1} (${action})`;
     if (!actions[action]) throw new Error(`${at}: use one of ${stepNames.join(', ')}.`);
     if (a.ref) throw new Error(`${at}: refs like "${a.ref}" only last until the page changes. Use role and name instead.`);
+    try {
+      checkRole(a.role);
+      checkRole(a.within, 'within role');
+      for (const f of Object.values(a.fields || {})) checkRole(f?.role, 'field role');
+    } catch (e) { throw new Error(`${at}: ${e.message}`); }
     for (const [, k] of JSON.stringify(a).matchAll(/\{\{(\w+)\}\}/g))
       if (!(k in params)) throw new Error(`${at} uses {{${k}}}, which is not in params.`);
   });
@@ -385,11 +455,13 @@ function fillFrom(params, args) {
 const TARGETED = new Set(['click', 'type', 'select', 'upload', 'read', 'download', 'extract']);
 const TARGET_KEYS = ['ref', 'role', 'name', 'text', 'exact', 'nth'];
 const onlyTarget = a => Object.fromEntries(TARGET_KEYS.filter(k => a[k] !== undefined).map(k => [k, a[k]]));
-const exists = (loc, ms) => loc.waitFor({ state: 'attached', timeout: ms }).then(() => true, () => false);
+const exists = (loc, ms, state = 'attached') => loc.waitFor({ state, timeout: ms }).then(() => true, () => false);
+// Elements the step acts on must be visible; ones it only reads may be anywhere in the page.
+const INTERACTIVE = new Set(['click', 'type', 'select', 'upload', 'download']);
 
 // null if the step's element is there; else a replacement target: a saved fallback, or the closest match.
-async function findOrHeal(p, a, fallbacks = []) {
-  if (await exists(locate(p, a), 5000)) return null;
+async function findOrHeal(p, a, fallbacks = [], action = 'read', wait = 5000) {
+  if (await exists(locate(p, a), wait, INTERACTIVE.has(action) ? 'visible' : 'attached')) return null;
   for (const f of fallbacks) if (await exists(locate(p, { ...f, within: a.within }), 500)) return f;
   const el = closest(a, elements(await p.ariaSnapshot({ mode: 'ai' })));
   const fix = el && { role: el.role, name: el.name, exact: true };
@@ -408,10 +480,10 @@ async function fallbacksFor(p, a) {
 }
 
 // Find a targeted step's element, healing the step (in `step`, which the caller may save) if it moved.
-async function resolveStep(p, step, a, repairs, i) {
+async function resolveStep(p, step, a, repairs, i, wait) {
   const { action, expect, fallbacks, ...raw } = step;
   if (!TARGETED.has(action) || !hasTarget(a) || a.ref) return a;
-  const fix = await findOrHeal(p, a, fallbacks);
+  const fix = await findOrHeal(p, a, fallbacks, action, wait);
   if (!fix) return a;
   repairs.push(`step ${i + 1}: ${describe(a)} is now ${describe(fix)}`);
   if (!/\{\{/.test(JSON.stringify(onlyTarget(raw)))) { // a target built from params can't be stored
@@ -438,7 +510,16 @@ async function runSteps(site, sc, args, { learn = false } = {}) {
         const fb = await fallbacksFor(p, a);
         if (fb.length) step.fallbacks = fb;
       }
-      last = await actions[action](p, { show: 'none', ...a }, site);
+      try {
+        last = await actions[action](p, { show: 'none', ...a }, site);
+      } catch (e) {
+        // Many pages replace elements with script just after loading (a search box that becomes a combobox), so an
+        // element found a moment ago can be gone by the time it is used. Look for it again, repairing if need be.
+        if (!TARGETED.has(action) || !hasTarget(a) || a.ref || !/timeout|detached|not attached|not visible|no element/i.test(e.message)) throw e;
+        await p.waitForLoadState('networkidle', { timeout: 3000 }).catch(() => {});
+        const again = await resolveStep(p, step, fill(raw), repairs, i, 1500);
+        last = await actions[action](p, { show: 'none', ...again }, site);
+      }
       if (expect) await p.getByText(fill(expect)).first().waitFor({ timeout: 10000 }).catch(() => {
         throw new Error(`expected "${fill(expect)}" on the page, but it is not there (URL: ${p.url()})`);
       });
