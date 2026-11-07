@@ -1,0 +1,18 @@
+{
+  "summary": {
+    "description": "Short summary of a Wikipedia article (title, description, extract and link) as JSON",
+    "params": { "title": "Article title, e.g. Ada Lovelace" },
+    "steps": [
+      { "action": "open", "url": "https://en.wikipedia.org/api/rest_v1/page/summary/{{title}}" },
+      { "action": "read" }
+    ]
+  },
+  "search": {
+    "description": "Search English Wikipedia and return the matching article titles with snippets",
+    "params": { "query": "What to search for" },
+    "steps": [
+      { "action": "open", "url": "https://en.wikipedia.org/w/index.php?search={{query}}&fulltext=1&ns0=1" },
+      { "action": "extract", "role": "listitem", "within": "main", "limit": 10 }
+    ]
+  }
+}

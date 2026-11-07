@@ -1,0 +1,18 @@
+{
+  "notifications": {
+    "description": "List your unread GitHub notifications (needs sign-in)",
+    "steps": [
+      { "action": "open", "url": "https://github.com/notifications" },
+      { "action": "read", "role": "main" }
+    ]
+  },
+  "trending": {
+    "description": "Trending GitHub repositories today, optionally for one language, as JSON",
+    "params": { "language": { "description": "Language, e.g. python, rust, typescript (empty for all)", "optional": true } },
+    "steps": [
+      { "action": "open", "url": "https://github.com/trending/{{language}}?since=daily" },
+      { "action": "extract", "role": "article", "limit": 25,
+        "fields": { "repo": { "role": "heading" }, "about": { "role": "paragraph" } } }
+    ]
+  }
+}
