@@ -1,7 +1,7 @@
 {
   "name": "anysite-mcp",
-  "version": "0.2.0",
-  "description": "Turn any website into MCP tools for Claude, Cursor and other AI agents: a real Chrome signed in as you, one profile per site, and shortcuts the agent learns and saves as new tools",
+  "version": "0.3.0",
+  "description": "Your AI agent learns a website once and keeps it as a tool: a real Chrome signed in as you, one profile per site, self-repairing shortcuts, record mode and per-site permissions. For Claude, Cursor and any MCP client",
   "mcpName": "io.github.DwytMCL/anysite-mcp",
   "main": "server.js",
   "type": "module",
@@ -46,6 +46,7 @@
   },
   "files": [
     "server.js",
+    "lib/",
     "sites/",
     "README.md",
     "LICENSE",

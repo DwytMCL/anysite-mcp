@@ -1,0 +1,17 @@
+{
+  "search": {
+    "description": "Search Hacker News stories; returns JSON with title, url, points and comment counts",
+    "params": { "query": "What to search for" },
+    "steps": [
+      { "action": "open", "url": "https://hn.algolia.com/api/v1/search?tags=story&hitsPerPage=20&query={{query}}" },
+      { "action": "read" }
+    ]
+  },
+  "front_page": {
+    "description": "The stories on the Hacker News front page right now, as JSON",
+    "steps": [
+      { "action": "open", "url": "https://hn.algolia.com/api/v1/search?tags=front_page&hitsPerPage=30" },
+      { "action": "read" }
+    ]
+  }
+}
