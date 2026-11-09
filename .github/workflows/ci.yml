@@ -4,12 +4,24 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Weekly, so a new Chrome or dependency release that breaks something shows up without a commit.
+  schedule:
+    - cron: '0 6 * * 1'
+  # The release workflow runs this whole file against the tag before publishing.
+  workflow_call:
+    inputs:
+      ref:
+        description: Ref to test, e.g. refs/tags/v0.5.0
+        type: string
+        required: false
+        default: ''
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  # In a call from the release workflow github.workflow is "Release", so a release never cancels main's run.
+  group: ci-${{ github.workflow }}-${{ inputs.ref || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -17,6 +29,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
@@ -35,6 +49,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ matrix.node }}
@@ -80,12 +96,21 @@ jobs:
         timeout-minutes: 5
         env:
           ANYSITE_CHROME: ${{ steps.chrome.outputs.chrome-path }}
+      # Packs, installs and starts the package as npm would publish it.
+      - name: Package smoke test
+        if: matrix.os == 'ubuntu-latest' && matrix.node == 24
+        run: npm run test:pack
+        timeout-minutes: 5
+        env:
+          ANYSITE_CHROME: ${{ steps.chrome.outputs.chrome-path }}
 
   # Node 18 and 20 must be refused at startup with a clear message, not a syntax error.
   node-guard:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 20

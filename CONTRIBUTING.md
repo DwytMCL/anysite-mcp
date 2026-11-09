@@ -13,7 +13,7 @@ claude mcp add anysite-dev -- node "$PWD/server.js"
 
 On Linux as root (Docker, CI) Chrome needs `ANYSITE_CHROME_ARGS=--no-sandbox`.
 
-Before opening a pull request, run `npm run lint` (ESLint, plus a TypeScript check of `lib/` and `test/`) and
+Before opening a pull request, run `npm run lint` (ESLint, plus a TypeScript check of all the code) and
 `npm test`. `npm run test:unit` runs only the unit tests in `test/`, which need no Chrome. Bug fixes come with a test.
 
 ## Where things are
@@ -42,11 +42,29 @@ A pack is one file in `sites/<name>.js`; see the README and [`sites/gemini.js`](
 
 ## Releasing
 
-A release PR sets the version in `package.json`, `package-lock.json` and both places in `server.json`, and renames
-`## Unreleased` in CHANGELOG.md to the version (`npm run check:versions -- --release` checks all of it). After it merges,
-push the tag, e.g. `git tag v0.5.0 && git push origin v0.5.0`. The release workflow runs the checks, publishes to npm
-through trusted publishing and creates the GitHub release. If a step fails, fix it and run the workflow by hand with the
-tag (Actions → Release → Run workflow); steps that are already done are skipped.
+Changes go under `## Unreleased` in CHANGELOG.md as they land. A release is prepare → merge → tag:
+
+1. **Prepare.** Run Actions → Prepare release with a `bump`. It sets the version in `package.json`,
+   `package-lock.json` and both places in `server.json`, renames `## Unreleased` to the version for a final release,
+   pushes `release/v<version>` and opens a PR. CI on that PR waits until you click **Approve workflows to run**,
+   because the bot opened it.
+2. **Merge** the PR once CI is green.
+3. **Tag** the merge commit with the command in the PR, e.g. `git tag v0.5.0 && git push origin v0.5.0`.
+
+The Release workflow then checks the tag matches `package.json`, runs all of CI against the tag, smoke-tests the
+packed package (`npm run test:pack`), publishes to npm through trusted publishing, creates the GitHub release from
+CHANGELOG.md and lists the version in the MCP Registry.
+
+**Release candidates.** `preminor` (or `prepatch`, `premajor`) starts one, e.g. 0.4.0 → 0.5.0-rc.0, and `prerelease`
+moves to the next, 0.5.0-rc.0 → 0.5.0-rc.1. (On a stable version, `prerelease` starts a patch RC: 0.5.0 →
+0.5.1-rc.0.) An RC keeps its notes under `## Unreleased`, publishes to npm's `next` dist-tag, becomes a GitHub
+pre-release and only signs in to the MCP Registry. To finish, pick the same level again: `minor` turns 0.5.0-rc.0
+into 0.5.0.
+
+**Re-runs.** Prepare release is safe to run again for the same version: it replaces the `release/v<version>` branch
+and reuses the open PR. That branch belongs to the bot, so commits you push to it yourself are overwritten by a
+re-run. If a Release step fails, fix it on `main` and run Actions → Release → Run workflow with the tag; steps already
+done (npm, the GitHub release, the registry listing) are skipped. Tags from before v0.5.0 can't be re-run this way.
 
 ## Code style
 

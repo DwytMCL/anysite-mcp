@@ -4,6 +4,13 @@
 
 - Releases are published to npm by GitHub Actions with npm trusted publishing, so each version comes with provenance:
   proof of the commit and workflow it was built from (`npm audit signatures` checks it).
+- Listed in the [MCP Registry](https://registry.modelcontextprotocol.io) as `io.github.DwytMCL/anysite-mcp`.
+- Every release first runs all of CI against its tag, then packs, installs and starts the exact package about to be
+  published (`npm run test:pack`), which also checks that nothing outside the expected files ships.
+- Release candidates (e.g. 0.5.0-rc.0) publish to npm's `next` tag, so `npx anysite-mcp` keeps getting the stable
+  version. Try one with `npx -y anysite-mcp@next`.
+- CI also runs weekly, so a new Chrome that breaks something shows up without a commit. The TypeScript check now
+  covers all the code, and `npm run check:versions` also checks `package-lock.json`.
 
 ## 0.4.0
 

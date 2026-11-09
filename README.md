@@ -109,6 +109,9 @@ You need Node 22+ and Chrome (or `npx playwright install chromium`). Works on ma
 With no arguments the server offers every site you have signed in to. To pick sites, list them:
 `npx -y anysite-mcp gemini github.com`. The agent can also add a new site at any time by calling `web_login`.
 
+anysite-mcp is also listed in the [MCP Registry](https://registry.modelcontextprotocol.io) as
+`io.github.DwytMCL/anysite-mcp`, so clients that browse the registry can find and install it.
+
 ## Tools
 
 **Any site** (each takes `site`: a pack name like `gemini`, or a domain like `github.com`):
@@ -270,8 +273,9 @@ in two browsers at once, which logs you out everywhere. One profile per site avo
 npm install
 npm test                 # unit tests, then a headless self-check against a local test shop
 npm run test:unit        # unit tests only (no Chrome needed)
-npm run lint             # ESLint and a TypeScript check of lib/ and test/
-npm run check:versions   # package.json, server.json and CHANGELOG.md agree
+npm run lint             # ESLint and a TypeScript check of all the code
+npm run check:versions   # package.json, package-lock.json, server.json and CHANGELOG.md agree
+npm run test:pack        # pack, install and start the package as npm would publish it
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). New site packs are especially welcome.
