@@ -422,7 +422,7 @@
 
     var file = 'library/' + site + '.json';
     if (fileExists) {
-      els.pr.href = 'https://github.com/' + REPO + '/edit/' + BRANCH + '/' + file;
+      els.pr.href = 'https://github.com/' + REPO + '/edit/' + BRANCH + '/library/' + encodeURIComponent(site + '.json');
       els.prHint.textContent = 'The pull request link opens ' + file + ' on GitHub. Paste your entries into its top-level object (mind the commas), then propose the change.';
     } else {
       els.pr.href = 'https://github.com/' + REPO + '/new/' + BRANCH + '/library?filename=' + encodeURIComponent(site + '.json') + '&value=' + encodeURIComponent(json + '\n');
