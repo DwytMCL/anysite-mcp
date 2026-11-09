@@ -44,7 +44,8 @@ const http = createServer((req, res) => {
   res.end(pages[req.url.split('?')[0]] ?? page());
 }).listen(0, '127.0.0.1');
 await new Promise(r => http.once('listening', r));
-const site = `localhost:${http.address().port}`;
+// Listening on a port, so address() is an AddressInfo rather than a pipe name.
+const site = `localhost:${/** @type {import('node:net').AddressInfo} */ (http.address()).port}`;
 
 const home = mkdtempSync(join(tmpdir(), 'anysite-'));
 const env = { ...process.env, ANYSITE_HOME: home, ANYSITE_HEADLESS: '1' };
