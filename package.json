@@ -9,7 +9,11 @@
     "anysite-mcp": "server.js"
   },
   "scripts": {
-    "test": "node selfcheck.js"
+    "test": "npm run test:unit && npm run test:e2e",
+    "test:unit": "node --test \"test/*.test.js\"",
+    "test:e2e": "node selfcheck.js",
+    "lint": "eslint . && tsc -p .",
+    "check:versions": "node scripts/check-versions.js"
   },
   "keywords": [
     "mcp",
