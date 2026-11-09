@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Releases are published to npm by GitHub Actions with npm trusted publishing, so each version comes with provenance:
+  proof of the commit and workflow it was built from (`npm audit signatures` checks it).
+
 ## 0.4.0
 
 Node 22 or newer, Chromium builds that work, and a codebase split into tested modules.
