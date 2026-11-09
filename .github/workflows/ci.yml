@@ -5,21 +5,82 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  selfcheck:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run check:versions
+
+  test:
+    needs: lint
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        node: [20, 22]
+        node: [22, 24]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
-      # GitHub's runners come with Google Chrome; the self-check runs it headless against a local page.
-      - run: npm test
+      # A known Chrome on every OS, rather than whatever the runner image happens to include.
+      - name: Install Chrome
+        id: chrome
+        uses: browser-actions/setup-chrome@48ad923757ca74d66703209fe939badbdf80f2f4 # v2.2.0
+        with:
+          chrome-version: stable
+          install-chromedriver: false
+      # chrome.exe --version opens a browser on Windows instead of printing, so Windows logs the reported version.
+      - name: Show Chrome
+        shell: bash
+        run: |
+          echo "Chrome ${{ steps.chrome.outputs.chrome-version }} at ${{ steps.chrome.outputs.chrome-path }}"
+          if [ "$RUNNER_OS" != "Windows" ]; then "${{ steps.chrome.outputs.chrome-path }}" --version; fi
+      - name: Unit tests with coverage
+        if: matrix.os == 'ubuntu-latest' && matrix.node == 24
+        shell: bash
+        run: |
+          node --test --experimental-test-coverage --test-reporter=spec "test/*.test.js" | tee coverage.txt
+          { echo '### Unit test coverage'; echo '```'
+            sed -n '/start of coverage report/,/end of coverage report/p' coverage.txt
+            echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - name: Unit tests
+        if: ${{ !(matrix.os == 'ubuntu-latest' && matrix.node == 24) }}
+        run: npm run test:unit
+      - name: Self-check
+        run: npm run test:e2e
         timeout-minutes: 5
+        env:
+          ANYSITE_CHROME: ${{ steps.chrome.outputs.chrome-path }}
+
+  # Node 18 and 20 must be refused at startup with a clear message, not a syntax error.
+  node-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+      - name: server.js refuses Node 20
+        shell: bash
+        run: |
+          out=$(node server.js --version 2>&1) && exit 1
+          echo "$out"
+          echo "$out" | grep -q "needs Node 22"
