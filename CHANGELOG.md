@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+- **Breaking: Node 22 or newer.** Node 18 and 20 have reached end of life. `anysite-mcp` now stops at startup on an
+  older Node with "anysite-mcp needs Node 22 or newer" and a link to update, instead of failing somewhere later.
+- Fixed: Chromium and Chrome for Testing (for example from `npx playwright install chromium`) never loaded the
+  site, so anysite-mcp timed out connecting to them. Chrome is now started with `--disable-field-trial-config`, as
+  Playwright does.
+- Fixed: a pack tool marked `writes: true` on a read-only site said the agent "can't write" instead of naming the
+  tool (for example "can't use notebooklm_add_source").
+- `server.js` is split into modules in `lib/`, with no change in behaviour. Chrome is now looked up when first
+  needed rather than when the code loads.
+- Unit tests (`npm run test:unit`), ESLint and a TypeScript check (`npm run lint`), and a version check
+  (`npm run check:versions`).
+- CI tests Node 22 and 24 on Linux, macOS and Windows with a freshly installed Chrome, reports unit test coverage,
+  checks that Node 20 is refused, and runs CodeQL. Actions are pinned to commits and kept up to date by Dependabot.
+
 ## 0.3.0
 
 Shortcuts that repair themselves, learning by watching, and limits you set.

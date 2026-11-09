@@ -81,7 +81,7 @@ session revoked by Google (and other careful sites), which logs you out everywhe
 
 ## Install
 
-You need Node 18+ and Chrome (or `npx playwright install chromium`). Works on macOS, Windows and Linux.
+You need Node 22+ and Chrome (or `npx playwright install chromium`). Works on macOS, Windows and Linux.
 
 1. Sign in to the sites you want, once each. A normal Chrome window opens; sign in, then quit it (Cmd+Q on a Mac,
    close all its windows on Windows and Linux).
@@ -268,7 +268,10 @@ in two browsers at once, which logs you out everywhere. One profile per site avo
 
 ```bash
 npm install
-npm test   # headless self-check against a local test shop: refs, shortcuts, self-repair, permissions, record
+npm test                 # unit tests, then a headless self-check against a local test shop
+npm run test:unit        # unit tests only (no Chrome needed)
+npm run lint             # ESLint and a TypeScript check of lib/ and test/
+npm run check:versions   # package.json, server.json and CHANGELOG.md agree
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). New site packs are especially welcome.
