@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { chromeCandidates } from '../lib/browser.js';
+import { chromeCandidates, launchArgs } from '../lib/browser.js';
 
 const none = () => [];
 
@@ -54,4 +54,11 @@ test('ANYSITE_CHROME comes first, then PLAYWRIGHT_BROWSERS_PATH is searched', ()
     home: '/home/me', listDir: d => d === '/pw' ? ['chromium-1'] : [] });
   assert.equal(c[0], '/opt/my/chrome');
   assert(c.includes('/pw/chromium-1/chrome-linux/chrome'));
+});
+
+test('launchArgs: own profile, and the field-trial testing config off so Chromium builds load their first page', () => {
+  const args = launchArgs({ profile: '/data/profiles/shop' }, ['https://shop.test/']);
+  assert.equal(args[0], '--user-data-dir=/data/profiles/shop');
+  assert(args.includes('--disable-field-trial-config'));
+  assert.equal(args.at(-1), 'https://shop.test/');
 });

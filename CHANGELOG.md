@@ -4,6 +4,9 @@
 
 - **Breaking: Node 22 or newer.** Node 18 and 20 have reached end of life. `anysite-mcp` now stops at startup on an
   older Node with "anysite-mcp needs Node 22 or newer" and a link to update, instead of failing somewhere later.
+- Fixed: Chromium and Chrome for Testing (for example from `npx playwright install chromium`) never loaded the
+  site, so anysite-mcp timed out connecting to them. Chrome is now started with `--disable-field-trial-config`, as
+  Playwright does.
 - Fixed: a pack tool marked `writes: true` on a read-only site said the agent "can't write" instead of naming the
   tool (for example "can't use notebooklm_add_source").
 - `server.js` is split into modules in `lib/`, with no change in behaviour. Chrome is now looked up when first
