@@ -1,5 +1,5 @@
 // Packs the package as npm would publish it, checks what's inside, installs it into a temp folder and starts it:
-// `--version`, then an MCP initialize and tools/list through the SDK client. Needs Chrome, as the CLI does.
+// `--version`, then an MCP initialize and tools/list through the SDK client. Needs Chrome, as serving MCP does.
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';

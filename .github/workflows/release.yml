@@ -85,7 +85,7 @@ jobs:
           package-manager-cache: false
       - run: npm ci
       - run: npm run check:versions -- --release
-      # The CLI won't start without Chrome, even for --version and tools/list.
+      # Serving MCP (and so tools/list) won't start without Chrome.
       - name: Install Chrome
         id: chrome
         uses: browser-actions/setup-chrome@48ad923757ca74d66703209fe939badbdf80f2f4 # v2.2.0

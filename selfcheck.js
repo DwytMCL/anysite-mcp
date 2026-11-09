@@ -13,6 +13,7 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'n
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { build } from './shortcuts-library/build.js';
 
 // Version 2 of the shop is a "redesign": the search field is renamed and the Go button becomes a link.
 let v2 = false;
@@ -211,6 +212,14 @@ try {
     const dir = fileURLToPath(new URL('./library/', import.meta.url));
     for (const f of readdirSync(dir).filter(f => f.endsWith('.json')))
       assert.match(await cli('add', f.slice(0, -5), '--from', join(dir, f)), /\+ /, f);
+  });
+
+  await step('library list reads a local library build', async () => {
+    const out = join(home, 'site');
+    build({ out, health: join(home, 'no-health.json') });
+    const { stdout } = await promisify(execFile)(process.execPath, [serverJs, 'library', 'list', 'github.com'],
+      { env: { ...env, ANYSITE_LIBRARY: join(out, 'library') } });
+    assert.match(stdout, /– not checked yet {2}github_com_trending: [\s\S]*npx -y anysite-mcp add github\.com\/trending/);
   });
 
   await call('web_delete_shortcut', { site, name: 'search' });

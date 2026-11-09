@@ -18,6 +18,31 @@ do on that site anyway. Read them before you add them all the same.
 | `en.wikipedia.org` | `summary`, `search` |
 | `hn.algolia.com` | `search`, `front_page` (Hacker News) |
 
+Find them from the terminal with `npx -y anysite-mcp library search <words>`, `library list [site]` and
+`library info <site>/<name>`.
+
+## Health
+
+Every Monday a workflow runs `doctor` on each shortcut here against the live site (opening and reading pages only,
+never clicking or typing) and publishes the result. The site and `anysite-mcp library` show:
+
+| Badge | Meaning |
+|---|---|
+| ✓ passing | Every step it could check found what it needed |
+| ~ repaired | It worked after finding a changed element another way; the file should be updated to match |
+| ✗ broken | A step failed; the detail says which and why |
+| – not checked yet | Not checked since it was added or its steps last changed |
+| ? not recently checked | The last check is more than 14 days old, so its result isn't shown |
+
+The check can't sign in, so **only shortcuts that work without signing in belong here.**
+
+To try a library change before it's deployed, build the site and point the CLI at it:
+
+```bash
+node shortcuts-library/build.js
+ANYSITE_LIBRARY=_site/library node server.js library list
+```
+
 ## Share yours
 
 1. Ask your agent for the JSON: `web_list_shortcuts` with `site` and `name`.
