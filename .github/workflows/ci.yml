@@ -40,19 +40,30 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
-      # A known Chrome on every OS, rather than whatever the runner image happens to include.
+      # A known Chrome rather than whatever the runner image happens to include. Not on macOS: setup-chrome unpacks
+      # Chrome for Testing outside a .app bundle there, so its helpers are denied and no page loads. macOS uses the
+      # runner's Google Chrome, found the way users' installs are.
       - name: Install Chrome
+        if: runner.os != 'macOS'
         id: chrome
         uses: browser-actions/setup-chrome@48ad923757ca74d66703209fe939badbdf80f2f4 # v2.2.0
         with:
           chrome-version: stable
           install-chromedriver: false
+      # Ubuntu 24.04's AppArmor blocks the user namespaces Chrome's sandbox needs for a Chrome outside the usual
+      # install path ("No usable sandbox"). Allow them rather than run Chrome with --no-sandbox.
+      - name: Allow Chrome's sandbox
+        if: runner.os == 'Linux'
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       # chrome.exe --version opens a browser on Windows instead of printing, so Windows logs the reported version.
       - name: Show Chrome
         shell: bash
+        env:
+          ANYSITE_CHROME: ${{ steps.chrome.outputs.chrome-path }}
         run: |
-          echo "Chrome ${{ steps.chrome.outputs.chrome-version }} at ${{ steps.chrome.outputs.chrome-path }}"
-          if [ "$RUNNER_OS" != "Windows" ]; then "${{ steps.chrome.outputs.chrome-path }}" --version; fi
+          chrome=$(node -e "import('./lib/browser.js').then(m => console.log(m.findChrome() || 'none'))")
+          echo "anysite-mcp will use: $chrome"
+          if [ "$RUNNER_OS" = "Windows" ]; then echo "Chrome ${{ steps.chrome.outputs.chrome-version }}"; else "$chrome" --version; fi
       - name: Unit tests with coverage
         if: matrix.os == 'ubuntu-latest' && matrix.node == 24
         shell: bash
