@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.4.0
+
+Node 22 or newer, Chromium builds that work, and a codebase split into tested modules.
 
 - **Breaking: Node 22 or newer.** Node 18 and 20 have reached end of life. `anysite-mcp` now stops at startup on an
   older Node with "anysite-mcp needs Node 22 or newer" and a link to update, instead of failing somewhere later.
@@ -13,8 +15,10 @@
   needed rather than when the code loads.
 - Unit tests (`npm run test:unit`), ESLint and a TypeScript check (`npm run lint`), and a version check
   (`npm run check:versions`).
-- CI tests Node 22 and 24 on Linux, macOS and Windows with a freshly installed Chrome, reports unit test coverage,
-  checks that Node 20 is refused, and runs CodeQL. Actions are pinned to commits and kept up to date by Dependabot.
+- Uses Playwright 1.65.
+- CI tests Node 22 and 24 on Linux, macOS and Windows (with Chrome for Testing on Linux and Windows, and Google
+  Chrome on macOS), reports unit test coverage, checks that Node 20 is refused, and runs CodeQL. Actions are pinned to commits and kept up
+  to date by Dependabot.
 
 ## 0.3.0
 
