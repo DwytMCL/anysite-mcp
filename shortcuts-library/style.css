@@ -204,6 +204,24 @@ a.button:visited { color: #222; }
 
 /* Shortcut details */
 .s-tool { font-family: Consolas, Monaco, "Courier New", monospace; font-weight: bold; }
+
+/* Health badges: icon plus one word, so colour is never the only signal. */
+.health {
+  display: inline-block;
+  padding: 0 4px;
+  border: 1px solid #c9c9c9;
+  background: #f3f3f3;
+  font-size: 11px;
+  font-weight: normal;
+  white-space: nowrap;
+  color: #444;
+  cursor: help;
+  vertical-align: 1px;
+}
+.health-icon { font-weight: bold; margin-right: 3px; }
+.health-ok { border-color: #9cc79c; background: #eef8ee; color: #1f5f1f; }
+.health-repaired { border-color: #d8c27a; background: #fbf6e4; color: #6b5300; }
+.health-broken { border-color: #e3a3a3; background: #fff0f0; color: #900; }
 .s-params { margin: 4px 0 0; padding: 0; list-style: none; font-size: 12px; }
 .s-params li { margin: 1px 0; }
 .s-params code { background: #f3f3f3; border: 1px solid #ddd; padding: 0 3px; }
@@ -246,4 +264,6 @@ label.check { font-size: 12px; }
   #results tr { border-bottom: 1px solid #ddd; padding: 6px 0; }
   .form-table th { text-align: left; display: block; width: auto; padding: 6px 0 0; }
   .form-table td { display: block; }
+  .health-word { display: none; }
+  .health-icon { margin-right: 0; }
 }

@@ -12,6 +12,7 @@
 
   var all = [];
   var sites = [];
+  var health = null;
   var state = { q: '', site: 'All' };
 
   var $ = function (id) { return document.getElementById(id); };
@@ -155,6 +156,48 @@
 
   function val(v) { return el('span', { 'class': 'val', text: String(v == null ? '' : v) }); }
 
+  // ---------- health badges ----------
+
+  // The copy between the markers must match the one in lib/library.js (checked by build.js and the tests).
+  // HEALTH_FOR_START
+  function healthFor(shortcut, health, now) {
+    var entry = health && health.shortcuts ? health.shortcuts[shortcut.site + '/' + shortcut.name] : null;
+    var checked = health && health.checked ? health.checked : null;
+    var badges = {
+      ok: { icon: '✓', label: 'passing' },
+      repaired: { icon: '~', label: 'repaired' },
+      broken: { icon: '✗', label: 'broken' },
+      unchecked: { icon: '–', label: 'not checked yet' },
+      stale: { icon: '?', label: 'not recently checked' }
+    };
+    var status = 'unchecked';
+    if (entry && badges[entry.status] && shortcut.stepsHash && entry.steps === shortcut.stepsHash) {
+      var age = new Date(now).getTime() - new Date(checked).getTime();
+      status = checked && age <= 14 * 24 * 60 * 60 * 1000 ? entry.status : 'stale';
+    }
+    return {
+      status: status,
+      icon: badges[status].icon,
+      label: badges[status].label,
+      checked: status === 'unchecked' ? null : checked,
+      detail: status === 'unchecked' ? '' : entry.detail || ''
+    };
+  }
+  // HEALTH_FOR_END
+
+  // One short word on the badge; the full meaning and check date are in its label and tooltip.
+  var BADGE_WORDS = { ok: 'passing', repaired: 'repaired', broken: 'broken', unchecked: 'unchecked', stale: 'stale' };
+
+  function healthBadge(s) {
+    var h = healthFor(s, health, new Date());
+    var full = 'Health: ' + h.label + (h.checked ? ', checked ' + String(h.checked).slice(0, 10) : '') +
+      (h.status === 'ok' || h.status === 'unchecked' || !h.detail ? '' : ' (' + h.detail + ')');
+    return el('span', { 'class': 'health health-' + h.status, role: 'img', 'aria-label': full, title: full }, [
+      el('span', { 'class': 'health-icon', 'aria-hidden': 'true', text: h.icon }),
+      el('span', { 'class': 'health-word', 'aria-hidden': 'true', text: BADGE_WORDS[h.status] })
+    ]);
+  }
+
   // ---------- URL state (?q=...&site=...) ----------
 
   function readUrl() {
@@ -239,7 +282,7 @@
       raw[s.name].steps = s.steps;
 
       var info = el('td', { 'class': 'col-title' }, [
-        el('div', { 'class': 's-title' }, [el('span', { 'class': 's-tool' }, [highlight(s.tool, words)])]),
+        el('div', { 'class': 's-title' }, [el('span', { 'class': 's-tool' }, [highlight(s.tool, words)]), ' ', healthBadge(s)]),
         el('div', { 'class': 's-desc' }, [highlight(s.description, words)]),
         paramList(s.params),
         el('details', null, [el('summary', { text: 'Steps (' + (s.steps || []).length + ')' }), steps]),
@@ -399,9 +442,15 @@
   els.search.value = state.q;
 
   // The preview build sets window.__LIBRARY__; the real site reads the index the Pages build makes.
-  (window.__LIBRARY__ ? Promise.resolve(window.__LIBRARY__) : fetch('library/index.json', { cache: 'no-cache' })
-    .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }))
-    .then(function (data) {
+  // health.json comes from the weekly health check; without it every badge says "not checked yet".
+  var healthLoad = window.__LIBRARY__ ? Promise.resolve(window.__HEALTH__ || null) : fetch('library/health.json', { cache: 'no-cache' })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .catch(function () { return null; });
+  Promise.all([window.__LIBRARY__ ? Promise.resolve(window.__LIBRARY__) : fetch('library/index.json', { cache: 'no-cache' })
+    .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }), healthLoad])
+    .then(function (loaded) {
+      var data = loaded[0];
+      health = loaded[1];
       all = (data.shortcuts || []).slice().sort(function (a, b) {
         return a.site === b.site ? a.name.localeCompare(b.name) : a.site.localeCompare(b.site);
       });
