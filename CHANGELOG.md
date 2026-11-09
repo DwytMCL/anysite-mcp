@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.0
 
 - Releases are published to npm by GitHub Actions with npm trusted publishing, so each version comes with provenance:
   proof of the commit and workflow it was built from (`npm audit signatures` checks it).
