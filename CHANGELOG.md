@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.1
 
 - `anysite-mcp library search <words>`, `library list [site]` and `library info <site>[/<name>]` find shared
   shortcuts from the terminal, with each one's health and `add` command. `ANYSITE_LIBRARY` points them at a local
