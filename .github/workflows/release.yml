@@ -1,36 +1,82 @@
 name: Release
 
-# Push a tag like v0.5.0 to run the checks, publish to npm and create a GitHub release from its CHANGELOG.md entry.
+# Push a tag like v0.5.0 (or v0.5.0-rc.0 for a pre-release) to run the full CI against it, smoke-test the package,
+# publish to npm, create the GitHub release from CHANGELOG.md and list the server in the MCP Registry.
 # npm publishing uses trusted publishing (OIDC): no token or security key, and npm adds provenance automatically.
+# Pre-releases go to npm's "next" dist-tag, become GitHub pre-releases and only sign in to the MCP Registry.
 # Run it by hand with an existing tag to finish a release whose publish didn't happen; steps already done are skipped.
+# Only tags made since this workflow existed can be re-run: older trees lack the scripts it uses.
 on:
   push:
     tags: ['v*']
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing release tag, e.g. v0.4.0
+        description: Existing release tag, e.g. v0.5.0
         required: true
 
-permissions:
-  contents: write # gh release create
-  id-token: write # npm trusted publishing
+permissions: {}
 
 concurrency:
   group: release-${{ inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
-  release:
+  # Cheap checks first, so a bad tag fails before the CI matrix runs.
+  prep:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     env:
       TAG: ${{ inputs.tag || github.ref_name }}
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      prerelease: ${{ steps.tag.outputs.prerelease }}
     steps:
       - name: Check the tag looks like a release
-        run: '[[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Not a release tag: $TAG"; exit 1; }'
+        id: tag
+        run: |
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]] || { echo "::error::Not a release tag: $TAG (expected vX.Y.Z or vX.Y.Z-rc.N)"; exit 1; }
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          if [[ "$TAG" == *-rc.* ]]; then echo "prerelease=true"; else echo "prerelease=false"; fi >> "$GITHUB_OUTPUT"
+      - name: Check the tag exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: gh api "repos/$REPO/git/ref/tags/$TAG" --silent || { echo "::error::Tag $TAG not found"; exit 1; }
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: refs/tags/${{ env.TAG }}
+          ref: refs/tags/${{ steps.tag.outputs.tag }}
+          sparse-checkout: package.json
+          sparse-checkout-cone-mode: false
+      - name: Check the tag matches package.json
+        run: |
+          version=$(jq -r .version package.json)
+          [ "v$version" = "$TAG" ] || { echo "::error::Tag $TAG doesn't match package.json's version $version"; exit 1; }
+
+  # All of CI (lint, the test matrix, the Node guard) against the tag.
+  ci:
+    needs: prep
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: refs/tags/${{ needs.prep.outputs.tag }}
+
+  publish:
+    needs: [prep, ci]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # gh release create
+      id-token: write # npm trusted publishing and MCP Registry sign-in
+    env:
+      TAG: ${{ needs.prep.outputs.tag }}
+      PRERELEASE: ${{ needs.prep.outputs.prerelease }}
+      MCP_PUBLISHER_VERSION: v1.8.8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ needs.prep.outputs.tag }}
       # Trusted publishing needs npm 11.5.1 or newer, which comes with Node 24 (Node 22 has npm 10).
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -38,10 +84,24 @@ jobs:
           registry-url: https://registry.npmjs.org
           package-manager-cache: false
       - run: npm ci
-      - run: npm test
       - run: npm run check:versions -- --release
-      - name: Check the tag matches package.json
-        run: test "v$(node -p "require('./package.json').version")" = "$TAG"
+      # The CLI won't start without Chrome, even for --version and tools/list.
+      - name: Install Chrome
+        id: chrome
+        uses: browser-actions/setup-chrome@48ad923757ca74d66703209fe939badbdf80f2f4 # v2.2.0
+        with:
+          chrome-version: stable
+          install-chromedriver: false
+      # Ubuntu 24.04's AppArmor blocks the user namespaces Chrome's sandbox needs for a Chrome outside the usual
+      # install path ("No usable sandbox"). Allow them rather than run Chrome with --no-sandbox.
+      - name: Allow Chrome's sandbox
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      # The exact package about to be published: its contents, then installed and started.
+      - name: Package smoke test
+        run: npm run test:pack
+        timeout-minutes: 5
+        env:
+          ANYSITE_CHROME: ${{ steps.chrome.outputs.chrome-path }}
       - name: Publish to npm
         run: |
           node -e "const [a, b, c] = process.argv[1].split('.').map(Number);
@@ -49,13 +109,48 @@ jobs:
           version=$(node -p "require('./package.json').version")
           if [ -n "$(npm view "anysite-mcp@$version" version 2>/dev/null)" ]; then
             echo "anysite-mcp@$version is already on npm."
+          elif [ "$PRERELEASE" = true ]; then
+            npm publish --tag next
           else
             npm publish
           fi
       - name: GitHub release from CHANGELOG.md
         run: |
           if gh release view "$TAG" >/dev/null 2>&1; then echo "Release $TAG already exists."; exit 0; fi
-          awk -v v="${TAG#v}" '$0 ~ "^## " v {f=1; next} /^## /{f=0} f' CHANGELOG.md > notes.md
-          gh release create "$TAG" --title "$TAG" --notes-file notes.md
+          node scripts/release-notes.js "$TAG" > "$RUNNER_TEMP/notes.md"
+          flags=()
+          if [ "$PRERELEASE" = true ]; then flags+=(--prerelease); fi
+          gh release create "$TAG" --title "$TAG" --notes-file "$RUNNER_TEMP/notes.md" "${flags[@]}"
         env:
           GH_TOKEN: ${{ github.token }}
+      # The MCP Registry steps run last: if the registry (in preview) fails, npm and the GitHub release are done,
+      # and a re-run by hand retries only the registry.
+      - name: Install cosign
+        uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
+      - name: Download and verify mcp-publisher
+        working-directory: ${{ runner.temp }}
+        run: |
+          archive=mcp-publisher_linux_amd64.tar.gz
+          base_url="https://github.com/modelcontextprotocol/registry/releases/download/$MCP_PUBLISHER_VERSION"
+          curl --fail --location --silent --show-error --output "$archive" "$base_url/$archive"
+          curl --fail --location --silent --show-error --output "$archive.sigstore.json" "$base_url/$archive.sigstore.json"
+          cosign verify-blob --bundle "$archive.sigstore.json" \
+            --certificate-identity "https://github.com/modelcontextprotocol/registry/.github/workflows/release.yml@refs/tags/$MCP_PUBLISHER_VERSION" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com "$archive"
+          tar xzf "$archive" mcp-publisher
+          rm -f "$archive" "$archive.sigstore.json"
+      # Every release signs in, so a pre-release proves the OIDC sign-in and namespace before a final release needs them.
+      - name: Sign in to the MCP Registry
+        run: '"$RUNNER_TEMP/mcp-publisher" login github-oidc'
+      - name: Publish to the MCP Registry
+        if: needs.prep.outputs.prerelease == 'false'
+        run: |
+          version=$(node -p "require('./package.json').version")
+          name=$(node -p "require('./server.json').name")
+          status=$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            "https://registry.modelcontextprotocol.io/v0/servers/${name/\//%2F}/versions/$version")
+          case "$status" in
+            200) echo "$name $version is already in the MCP Registry." ;;
+            404) "$RUNNER_TEMP/mcp-publisher" publish ;;
+            *) echo "::error::The MCP Registry answered $status when asked for $name $version"; exit 1 ;;
+          esac
