@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- `anysite-mcp library search <words>`, `library list [site]` and `library info <site>[/<name>]` find shared
+  shortcuts from the terminal, with each one's health and `add` command. `ANYSITE_LIBRARY` points them at a local
+  library build or another URL.
+- Health badges: a weekly check runs every library shortcut against the live sites. The
+  [Shortcut Library site](https://dwytmcl.github.io/anysite-mcp/) and `library` show ✓ passing, ~ repaired,
+  ✗ broken, "not checked yet" (never checked, or edited since) or "not recently checked" (no check in 14 days).
+- `--version`, `--help`, `library`, `add` and `permissions` no longer need Chrome installed. Only commands that
+  start it (`login`, `record`, `doctor` and serving MCP) do.
+- Unit tests for the MCP tool registration (`zodParam`, `useSite`, pack and shortcut tools).
+
 ## 0.5.0
 
 - Releases are published to npm by GitHub Actions with npm trusted publishing, so each version comes with provenance:

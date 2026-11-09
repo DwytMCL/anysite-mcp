@@ -179,7 +179,17 @@ pages, checks that the element of the first step that would act is there, and re
 or types.
 
 **Shared shortcuts** live in [`library/`](library/), and you can browse them on the [Shortcut Library site](https://dwytmcl.github.io/anysite-mcp/). `npx -y anysite-mcp add github.com` adds them; send yours in a
-pull request.
+pull request. Find them from the terminal too:
+
+```bash
+npx -y anysite-mcp library search wikipedia        # matches, with their health and add command
+npx -y anysite-mcp library list github.com         # every site, or one site's shortcuts
+npx -y anysite-mcp library info en.wikipedia.org/summary
+```
+
+A weekly check runs every library shortcut against the live site, and each one shows the result: ✓ passing,
+~ repaired, ✗ broken, – not checked yet, or ? not recently checked. `library`, `add` and `permissions` don't need
+Chrome.
 
 ## Write a pack
 
@@ -224,6 +234,7 @@ Settings (environment variables):
 | `ANYSITE_HEADLESS=1` | Run the automated Chrome without a window. Sign-in always opens a window. |
 | `ANYSITE_CHROME_ARGS` | Extra Chrome flags, e.g. `--no-sandbox` when running as root in a container |
 | `ANYSITE_DOWNLOADS` | Where downloads go (default `~/Downloads/anysite`) |
+| `ANYSITE_LIBRARY` | Where `library` reads the Shortcut Library from: a folder (e.g. `_site/library` after a local build) or a URL |
 
 ## Permissions and safety
 
