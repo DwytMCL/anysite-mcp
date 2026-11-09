@@ -6,13 +6,20 @@ on:
     paths:
       - "library/**"
       - "shortcuts-library/**"
+      - "lib/library.js"
+      - "scripts/library-health.js"
       - ".github/workflows/pages.yml"
   pull_request:
     paths:
       - "library/**"
       - "shortcuts-library/**"
+      - "lib/library.js"
+      - "scripts/library-health.js"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
+  # Weekly health check of every library shortcut against the live sites (Monday, after CI's weekly run).
+  schedule:
+    - cron: '0 8 * * 1'
 
 permissions:
   contents: read
@@ -21,7 +28,8 @@ permissions:
 
 concurrency:
   group: pages-${{ github.ref }}
-  cancel-in-progress: true
+  # Only previews are cancelled, so a push can't cut short the weekly health check.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
@@ -41,7 +49,40 @@ jobs:
           for f in library/*.json; do
             node server.js add "$(basename "$f" .json)" --from "$f"
           done
+      # Scheduled and manual runs check every shortcut against the live sites; see scripts/library-health.js.
+      - name: Install Chrome
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        id: chrome
+        uses: browser-actions/setup-chrome@48ad923757ca74d66703209fe939badbdf80f2f4 # v2.2.0
+        with:
+          chrome-version: stable
+          install-chromedriver: false
+      # Ubuntu 24.04's AppArmor blocks the user namespaces Chrome's sandbox needs for a Chrome outside the usual
+      # install path ("No usable sandbox"). Allow them rather than run Chrome with --no-sandbox.
+      - name: Allow Chrome's sandbox
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      # A broken shortcut doesn't fail this step; only a check that can't run at all does, and then the site still
+      # deploys with the last health.json, whose date turns the badges to "not recently checked" after 14 days.
+      - name: Check shortcuts against the live sites
+        id: health
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        continue-on-error: true
+        timeout-minutes: 20
+        env:
+          ANYSITE_CHROME: ${{ steps.chrome.outputs.chrome-path }}
+          ANYSITE_HEADLESS: "1"
+        run: node scripts/library-health.js library "$RUNNER_TEMP/health.json"
+      # Other runs keep the deployed health.json. Without one, the badges say "not checked yet".
+      - name: Carry over the deployed health.json
+        if: steps.health.outcome != 'success'
+        shell: bash
+        run: |
+          url=https://dwytmcl.github.io/anysite-mcp/library/health.json
+          curl -fsSL "$url" -o "$RUNNER_TEMP/health.json" || { rm -f "$RUNNER_TEMP/health.json"; echo "No deployed health.json to carry over."; }
       - name: Build site
+        env:
+          HEALTH_JSON: ${{ runner.temp }}/health.json
         run: node shortcuts-library/build.js
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
