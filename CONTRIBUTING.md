@@ -7,11 +7,23 @@ Thanks for helping. The easiest and most useful contributions are **site packs**
 ```bash
 git clone https://github.com/DwytMCL/anysite-mcp && cd anysite-mcp
 npm install
-npm test                       # headless self-check against a local page, no network needed
+npm test                       # unit tests, then a headless self-check against a local page; no network needed
 claude mcp add anysite-dev -- node "$PWD/server.js"
 ```
 
 On Linux as root (Docker, CI) Chrome needs `ANYSITE_CHROME_ARGS=--no-sandbox`.
+
+Before opening a pull request, run `npm run lint` (ESLint, plus a TypeScript check of `lib/` and `test/`) and
+`npm test`. `npm run test:unit` runs only the unit tests in `test/`, which need no Chrome. Bug fixes come with a test.
+
+## Where things are
+
+- `server.js`: the entry point. It checks the Node version, then loads `lib/cli.js`.
+- `lib/cli.js`: the commands (`login`, `record`, `add`, `doctor`, `permissions`) and serving MCP.
+- `lib/tools.js`: the MCP server and its tools. `lib/actions.js`: what each page action does.
+- `lib/browser.js`: finding and starting Chrome, sites and packs. `lib/snapshot.js`: snapshots and finding elements.
+- `lib/guard.js` and `lib/permissions.js`: per-site permissions. `lib/shortcuts.js`, `lib/heal.js`,
+  `lib/recording.js` and `lib/recorder.js`: shortcuts, self-repair and record mode.
 
 ## Share a shortcut
 
@@ -30,5 +42,5 @@ A pack is one file in `sites/<name>.js`; see the README and [`sites/gemini.js`](
 
 ## Code style
 
-Plain modern JavaScript (ES modules, Node 18+), no build step, no new dependencies unless there's no other way.
+Plain modern JavaScript (ES modules, Node 22+), no build step, no new dependencies unless there's no other way.
 Keep comments for the *why*.
