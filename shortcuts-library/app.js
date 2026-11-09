@@ -6,7 +6,7 @@
   var REPO = 'DwytMCL/anysite-mcp';
   var BRANCH = 'main';
 
-  // Step actions a shortcut may use: the web_* tools without the prefix (see checkShortcut in server.js).
+  // Step actions a shortcut may use: the web_* tools without the prefix (see checkShortcut in lib/shortcuts.js).
   var ACTIONS = ['snapshot', 'open', 'click', 'type', 'select', 'press', 'upload', 'read', 'extract', 'wait', 'download'];
   var NAME_RE = /^[a-z][a-z0-9_]*$/;
 
@@ -94,8 +94,8 @@
       ta.value = text;
       document.body.appendChild(ta);
       ta.select();
-      var ok = false;
-      try { ok = document.execCommand('copy'); } catch (err) { ok = false; }
+      var ok;
+      try { ok = document.execCommand('copy'); } catch { ok = false; }
       document.body.removeChild(ta);
       done(ok);
     }
@@ -297,7 +297,7 @@
     return norm(s).trim().replace(/^[a-z]+:\/\//, '').replace(/[/?#].*$/, '').replace(/^www\./, '');
   }
 
-  // The same rules anysite-mcp applies when you run "add" (addShortcuts and checkShortcut in server.js).
+  // The same rules anysite-mcp applies when you run "add" (addShortcuts and checkShortcut in lib/shortcuts.js).
   function checkShortcuts(obj) {
     var errors = [];
     if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return ['The JSON must be an object of { "name": { ... } }.'];
