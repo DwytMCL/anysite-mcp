@@ -107,12 +107,18 @@ jobs:
           node -e "const [a, b, c] = process.argv[1].split('.').map(Number);
             if (a * 1e6 + b * 1e3 + c < 11005001) { console.error('npm ' + process.argv[1] + ' is too old for trusted publishing'); process.exit(1); }" "$(npm --version)"
           version=$(node -p "require('./package.json').version")
-          if [ -n "$(npm view "anysite-mcp@$version" version 2>/dev/null)" ]; then
+          if [ -n "$(npm view "anysite-mcp@$version" version --prefer-online 2>/dev/null)" ]; then
             echo "anysite-mcp@$version is already on npm."
-          elif [ "$PRERELEASE" = true ]; then
-            npm publish --tag next
-          else
-            npm publish
+            exit 0
+          fi
+          args=()
+          if [ "$PRERELEASE" = true ]; then args+=(--tag next); fi
+          npm publish "${args[@]}" 2>&1 | tee "$RUNNER_TEMP/publish.log"
+          status=${PIPESTATUS[0]}
+          # npm view can lag minutes behind a publish, so a re-run may not see it; npm then refuses to publish again.
+          if [ "$status" -ne 0 ]; then
+            grep -q "cannot publish over the previously published versions" "$RUNNER_TEMP/publish.log" || exit "$status"
+            echo "anysite-mcp@$version is already on npm."
           fi
       - name: GitHub release from CHANGELOG.md
         run: |
@@ -150,7 +156,22 @@ jobs:
           status=$(curl --silent --output /dev/null --write-out '%{http_code}' \
             "https://registry.modelcontextprotocol.io/v0/servers/${name/\//%2F}/versions/$version")
           case "$status" in
-            200) echo "$name $version is already in the MCP Registry." ;;
-            404) "$RUNNER_TEMP/mcp-publisher" publish ;;
+            200) echo "$name $version is already in the MCP Registry."; exit 0 ;;
+            404) ;;
             *) echo "::error::The MCP Registry answered $status when asked for $name $version"; exit 1 ;;
           esac
+          # The registry checks npm's version URL, which can 404 for a while after a publish. Wait until it's served.
+          for i in $(seq 40); do
+            [ "$(curl --silent --output /dev/null --write-out '%{http_code}' "https://registry.npmjs.org/anysite-mcp/$version")" = 200 ] && break
+            echo "Waiting for npm to serve anysite-mcp@$version ($i)..."
+            sleep 15
+          done
+          # The registry may reach a different npm cache that is still behind, so retry that case a few times.
+          for i in 1 2 3 4; do
+            "$RUNNER_TEMP/mcp-publisher" publish 2>&1 | tee "$RUNNER_TEMP/registry.log"
+            status=${PIPESTATUS[0]}
+            [ "$status" -eq 0 ] && exit 0
+            grep -q "was not found (status: 404)" "$RUNNER_TEMP/registry.log" || exit "$status"
+            sleep 30
+          done
+          exit "$status"
