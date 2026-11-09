@@ -4,6 +4,10 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # @types/node follows the oldest supported Node (22), not the newest.
+    ignore:
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
     groups:
       npm:
         patterns: ['*']
