@@ -40,6 +40,14 @@ A pack is one file in `sites/<name>.js`; see the README and [`sites/gemini.js`](
 - throw errors that say what to do next ("use web_snapshot to see why");
 - never send, post, buy or delete without the user asking for exactly that.
 
+## Releasing
+
+A release PR sets the version in `package.json`, `package-lock.json` and both places in `server.json`, and renames
+`## Unreleased` in CHANGELOG.md to the version (`npm run check:versions -- --release` checks all of it). After it merges,
+push the tag, e.g. `git tag v0.5.0 && git push origin v0.5.0`. The release workflow runs the checks, publishes to npm
+through trusted publishing and creates the GitHub release. If a step fails, fix it and run the workflow by hand with the
+tag (Actions → Release → Run workflow); steps that are already done are skipped.
+
 ## Code style
 
 Plain modern JavaScript (ES modules, Node 22+), no build step, no new dependencies unless there's no other way.
