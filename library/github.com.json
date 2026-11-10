@@ -14,7 +14,7 @@
       { "action": "extract", "role": "article", "limit": 25,
         "fields": { "repo": { "role": "heading" }, "about": { "role": "paragraph" } } }
     ]
-  }
+  },
   "search_repos": {
     "description": "Search GitHub repositories with qualifiers (stars, created, pushed, topic, language). Returns the results page as text: repo, description, topics, language, stars, last updated.",
     "params": {
