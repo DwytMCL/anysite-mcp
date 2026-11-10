@@ -122,3 +122,27 @@ test('tool annotations: pack tools follow writes and readOnly', async () => {
   assert.deepEqual((await toolNamed('notebooklm_list_notebooks')).annotations,
     { readOnlyHint: true, destructiveHint: false, openWorldHint: true });
 });
+
+test('web_list_shortcuts: structured output matches its outputSchema', async () => {
+  const t = await toolNamed('web_list_shortcuts');
+  assert.deepEqual(t.outputSchema.required, ['site', 'file', 'shortcuts']);
+  writeFileSync(join(home, 'sites', 'example.edu.json'), JSON.stringify({
+    find: { description: 'Find', params: { q: 'Query' }, steps: [{ action: 'open', url: '/?q={{q}}' }] },
+    other: { description: 'Other', steps: [{ action: 'read' }] } }));
+  const one = await client.callTool({ name: 'web_list_shortcuts', arguments: { site: 'example.edu', name: 'find' } });
+  assert.ok(!one.isError);
+  assert.deepEqual(one.structuredContent, { site: 'example.edu', file: join(home, 'sites', 'example.edu.json'), shortcuts: [
+    { name: 'find', tool: 'example_edu_find', description: 'Find', params: { q: 'Query' }, steps: [{ action: 'open', url: '/?q={{q}}' }] }] });
+  const all = await client.callTool({ name: 'web_list_shortcuts', arguments: { site: 'example.edu' } });
+  assert.deepEqual(/** @type {any} */ (all.structuredContent).shortcuts.map(s => s.name), ['find', 'other']);
+  const none = await client.callTool({ name: 'web_list_shortcuts', arguments: { site: 'example.biz' } });
+  assert.ok(!none.isError);
+  assert.match(/** @type {{ text: string }} */ (none.content[0]).text, /No shortcuts saved for example\.biz yet/);
+  assert.deepEqual(/** @type {any} */ (none.structuredContent).shortcuts, []);
+});
+
+test('web_extract declares its outputSchema', async () => {
+  const t = await toolNamed('web_extract');
+  assert.deepEqual(t.outputSchema.required, ['rows']);
+  assert.equal(/** @type {any} */ (t.outputSchema.properties).rows.type, 'array');
+});

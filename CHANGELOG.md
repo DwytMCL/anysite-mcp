@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `web_extract` and `web_list_shortcuts` also return structured output (MCP `structuredContent`, with an
+  `outputSchema`): `{ rows, note? }` and `{ site, file, shortcuts: [{ name, tool, description, params, steps }] }`.
+  Their text is unchanged, so clients that read the text see no difference.
 - Tools carry MCP annotations, so clients can tell what each one does. Reading tools (`web_snapshot`, `web_read`,
   `web_extract`, `web_list_shortcuts` and so on) are marked read-only. Tools that act on a page (`web_click`,
   `web_type`, `web_select`, `web_press`, `web_upload`) and `web_save_shortcut` and `web_delete_shortcut` are

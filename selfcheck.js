@@ -98,6 +98,10 @@ try {
     assert.match(plain[0].link, /\/apples$/);
     const rows = JSON.parse(await call('web_extract', { site, role: 'listitem', fields: { url: { role: 'link', attr: 'href' } } }));
     assert.deepEqual(rows, [{ url: '/apples' }, { url: '/pears' }]);
+    const r = await raw('web_extract', { site, role: 'listitem' });
+    assert.deepEqual(r.structuredContent, { rows: JSON.parse(textOf(r)) }, 'structured rows match the text');
+    const none = await raw('web_extract', { site, role: 'row' });
+    assert.match(String(/** @type {{ note?: string }} */ (none.structuredContent).note), /^nothing matched row\./);
   });
 
   // web_extract's exact text, frozen in test/fixtures, so clients that read the text see no change.
