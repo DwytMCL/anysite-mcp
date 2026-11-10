@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.0
 
 - CI checks the server with a second MCP client, the MCP Inspector CLI (`npm run test:inspector`): the
   handshake, the tool list with its `--strict` schema checks, and a tool call.
