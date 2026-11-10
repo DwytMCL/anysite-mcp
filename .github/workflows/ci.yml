@@ -104,6 +104,36 @@ jobs:
         env:
           ANYSITE_CHROME: ${{ steps.chrome.outputs.chrome-path }}
 
+  # A second MCP client, the MCP Inspector CLI (pinned in the script): the handshake, tool schemas with --strict, and
+  # a tool call. The contract only, not the self-check: the Inspector starts a fresh server for every command. Node 24,
+  # because the Inspector needs ^24.22.1.
+  inspector:
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      # The server looks for Chrome when it starts, so install it as the test job does.
+      - name: Install Chrome
+        id: chrome
+        uses: browser-actions/setup-chrome@48ad923757ca74d66703209fe939badbdf80f2f4 # v2.2.0
+        with:
+          chrome-version: stable
+          install-chromedriver: false
+      - name: Allow Chrome's sandbox
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - name: Inspector check
+        run: npm run test:inspector
+        timeout-minutes: 5
+        env:
+          ANYSITE_CHROME: ${{ steps.chrome.outputs.chrome-path }}
+
   # Node 18 and 20 must be refused at startup with a clear message, not a syntax error.
   node-guard:
     runs-on: ubuntu-latest

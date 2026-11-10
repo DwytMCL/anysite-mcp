@@ -441,6 +441,7 @@ npm run test:unit        # unit tests only (no Chrome needed)
 npm run lint             # ESLint and a TypeScript check of all the code
 npm run check:versions   # package.json, package-lock.json, server.json and CHANGELOG.md agree
 npm run test:pack        # pack, install and start the package as npm would publish it
+npm run test:inspector   # check the MCP contract with a second client, the MCP Inspector CLI
 ```
 
 Releases are published to npm from GitHub Actions with provenance, after CI passes on the tag. Every change to
