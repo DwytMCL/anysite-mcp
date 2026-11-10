@@ -98,6 +98,25 @@ try {
     assert.match(plain[0].link, /\/apples$/);
     const rows = JSON.parse(await call('web_extract', { site, role: 'listitem', fields: { url: { role: 'link', attr: 'href' } } }));
     assert.deepEqual(rows, [{ url: '/apples' }, { url: '/pears' }]);
+    const r = await raw('web_extract', { site, role: 'listitem' });
+    assert.deepEqual(r.structuredContent, { rows: JSON.parse(textOf(r)) }, 'structured rows match the text');
+    const none = await raw('web_extract', { site, role: 'row' });
+    assert.match(String(/** @type {{ note?: string }} */ (none.structuredContent).note), /^nothing matched row\./);
+  });
+
+  // web_extract's exact text, frozen in test/fixtures, so clients that read the text see no change.
+  await step('extract text is unchanged', async () => {
+    await call('web_open', { site, url: '/fruit' });
+    const got = {
+      plain: await call('web_extract', { site, role: 'listitem' }),
+      fields: await call('web_extract', { site, role: 'listitem', fields: { title: { role: 'link' }, url: { role: 'link', attr: 'href' } } }),
+      empty_field: await call('web_extract', { site, role: 'listitem', fields: { buy: { role: 'button' } } }),
+      no_match: await call('web_extract', { site, role: 'row' }),
+    };
+    const fixture = fileURLToPath(new URL('./test/fixtures/extract-text.json', import.meta.url));
+    const text = JSON.stringify(got, null, 2).replaceAll(site, 'localhost:PORT') + '\n';
+    if (process.env.UPDATE_FIXTURES) writeFileSync(fixture, text);
+    assert.deepEqual(JSON.parse(text), JSON.parse(readFileSync(fixture, 'utf8')));
   });
 
   await step('extract fields skip empty matches and flag misspelled roles', async () => {
