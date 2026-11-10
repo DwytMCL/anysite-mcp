@@ -40,6 +40,19 @@ A pack is one file in `sites/<name>.js`; see the README and [`sites/gemini.js`](
 - throw errors that say what to do next ("use web_snapshot to see why");
 - never send, post, buy or delete without the user asking for exactly that.
 
+## Reviews
+
+Every pull request to `main` needs one approving review from a code owner (`@DwytMCL`, see
+[`.github/CODEOWNERS`](.github/CODEOWNERS)). A bot's approval doesn't count, because a bot isn't a code owner.
+
+- **Bot PRs (Dependabot, Prepare release):** the maintainer reviews and approves them as code owner, then merges
+  normally. That's a real review, because the maintainer didn't write them.
+- **The maintainer's own PRs:** GitHub doesn't allow approving your own PR, so they merge as a recorded admin bypass
+  ("Merge without waiting for requirements", or `gh pr merge --admin`). This is deliberate until there's a second
+  reviewer, and every such PR shows the bypass in its history.
+- **Stale approvals are dismissed:** a new push, such as Dependabot rebasing a PR, dismisses an earlier approval, so
+  approve it again.
+
 ## Releasing
 
 Changes go under `## Unreleased` in CHANGELOG.md as they land. A release is prepare → merge → tag:
@@ -48,7 +61,7 @@ Changes go under `## Unreleased` in CHANGELOG.md as they land. A release is prep
    `package-lock.json` and both places in `server.json`, renames `## Unreleased` to the version for a final release,
    pushes `release/v<version>` and opens a PR. CI on that PR waits until you click **Approve workflows to run**,
    because the bot opened it.
-2. **Merge** the PR once CI is green.
+2. **Approve and merge** the PR once CI is green.
 3. **Tag** the merge commit with the command in the PR, e.g. `git tag v0.5.0 && git push origin v0.5.0`.
 
 The Release workflow then checks the tag matches `package.json`, runs all of CI against the tag, smoke-tests the
