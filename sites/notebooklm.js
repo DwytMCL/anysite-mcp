@@ -33,6 +33,7 @@ export default ({ z, kit }) => {
     url: HOME_URL,
     tools: {
       list_notebooks: {
+        readOnly: true,
         description: 'List NotebookLM notebooks with their URLs (yours first, then featured ones).',
         run: async p => (await notebookLinks(p)).map(l => `${l.title}\t${l.url}`).join('\n'),
       },

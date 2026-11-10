@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 process.env.ANYSITE_HOME = mkdtempSync(join(tmpdir(), 'anysite-sc-'));
-const { checkShortcut, doctorArgs, fillFrom, paramSpec } = await import('../lib/shortcuts.js');
+const { checkShortcut, doctorArgs, fillFrom, paramSpec, shortcutAnnotations } = await import('../lib/shortcuts.js');
 
 test('checkShortcut: accepts a good shortcut', () => {
   assert.doesNotThrow(() => checkShortcut({ params: { q: 'Query' }, steps: [
@@ -45,4 +45,16 @@ test('doctorArgs: optional params stay empty, so doctor opens the page a user ge
   assert.deepEqual(doctorArgs(params), { q: 'test', n: 5, language: undefined });
   assert.equal(fillFrom(params, doctorArgs(params))('https://github.com/trending/{{language}}?since=daily'), 'https://github.com/trending/?since=daily');
   assert.deepEqual(doctorArgs(undefined), {});
+});
+
+test('shortcutAnnotations: read-only if every step only looks, destructive if one acts on the page', () => {
+  assert.deepEqual(shortcutAnnotations({ steps: [{ action: 'open', url: '/' }, { action: 'snapshot' }, { action: 'wait', seconds: 1 },
+    { action: 'read' }, { action: 'extract', role: 'row' }] }), { readOnlyHint: true });
+  for (const action of ['click', 'type', 'select', 'press', 'upload'])
+    assert.deepEqual(shortcutAnnotations({ steps: [{ action: 'open' }, { action }] }),
+      { readOnlyHint: false, destructiveHint: true }, action);
+  assert.deepEqual(shortcutAnnotations({ steps: [{ action: 'open' }, { action: 'download', role: 'link' }] }),
+    { readOnlyHint: false, destructiveHint: false });
+  assert.deepEqual(shortcutAnnotations({ steps: [{ action: 'download' }, { action: 'click' }] }),
+    { readOnlyHint: false, destructiveHint: true });
 });

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Tools carry MCP annotations, so clients can tell what each one does. Reading tools (`web_snapshot`, `web_read`,
+  `web_extract`, `web_list_shortcuts` and so on) are marked read-only. Tools that act on a page (`web_click`,
+  `web_type`, `web_select`, `web_press`, `web_upload`) and `web_save_shortcut` and `web_delete_shortcut` are
+  marked destructive. Shortcut tools are marked by their steps, and pack tools by `writes: true` or the new
+  `readOnly: true`.
 - Built on MCP TypeScript SDK v2 (`@modelcontextprotocol/server`); no change for clients. Tool input schemas now
   declare JSON Schema 2020-12 (the 2025-11-25 protocol's default) instead of draft-07, with the same content.
 - `doctor` leaves optional parameters empty when it checks a shortcut, instead of filling them with "test". The
