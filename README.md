@@ -282,8 +282,12 @@ npx -y anysite-mcp doctor
 ```
 
 `doctor` follows each shortcut while its steps only open and read pages, checks that the element of the first
-step that would act is there, and repairs what it can. Optional parameters are left empty, so the check sees the
-page the way a plain call would. It never clicks or types.
+step that would act is there, and repairs what it can. It never clicks or types.
+
+Each parameter gets its `default` if it has one. Otherwise an optional parameter is left empty, so the check sees
+the page the way a plain call would, and a required one gets `"test"`. If an optional parameter breaks the page when
+it's empty (say, an empty search in the page address), give it a `default`. Note that this also changes what users
+get when they leave it out.
 
 ## The Shortcut Library
 
