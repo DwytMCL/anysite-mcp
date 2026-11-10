@@ -67,6 +67,14 @@ const textOf = r => /** @type {{ text: string }} */ (r.content[0]).text;
 const call = async (name, args) => { const r = await raw(name, args); assert(!r.isError, textOf(r)); return textOf(r); };
 const fails = async (name, args, re) => { const r = await raw(name, args); assert(r.isError, `${name} should fail`); assert.match(textOf(r), re); };
 const step = (name, fn) => fn().then(() => console.log(`ok  ${name}`));
+// Run fn and check the server announced a changed tool list (notifications/tools/list_changed) for it.
+const announces = async (what, fn) => {
+  const before = listChanged;
+  const r = await fn();
+  for (const end = Date.now() + 2000; listChanged === before && Date.now() < end;) await new Promise(res => setTimeout(res, 50));
+  assert(listChanged > before, `${what} sends notifications/tools/list_changed`);
+  return r;
+};
 
 try {
   await step('tools are listed', async () => {
@@ -143,13 +151,21 @@ try {
     assert(!(await c.listTools()).tools.some(t => t.name === 'localhost_bad'), 'a failed test run saves nothing');
   });
 
+  await step('web_wait reports progress', async () => {
+    const updates = [];
+    const r = await c.callTool({ name: 'web_wait', arguments: { site, seconds: 2, show: 'none' } }, { onprogress: u => updates.push(u) });
+    assert(!r.isError, textOf(r));
+    assert(updates.length >= 1, 'at least one progress update');
+    assert.deepEqual(updates[0], { progress: 1, total: 2, message: 'Waited 1 s of 2' });
+  });
+
   const search = { site, name: 'search', description: 'Search the shop',
     params: { query: 'What to look for', limit: { description: 'How many', type: 'number', default: 5 } }, test_args: { query: 'figs' },
     steps: [{ action: 'open', url: '/' }, { action: 'type', role: 'textbox', name: 'Search products', value: '{{query}}' },
       { action: 'click', role: 'button', name: 'Go', expect: 'Results for {{query}}' }, { action: 'read', text: 'Results for' }] };
 
   await step('shortcuts are tried before saving and become tools', async () => {
-    assert.match(await call('web_save_shortcut', search), /Test run worked/);
+    assert.match(await announces('web_save_shortcut', () => call('web_save_shortcut', search)), /Test run worked/);
     assert.equal(await call('localhost_search', { query: 'plums' }), 'Results for plums');
     assert.match(await call('web_list_shortcuts', { site }), /localhost_search: Search the shop/);
     assert.match(await call('web_list_shortcuts', { site, name: 'search' }), /"search": \{/);
@@ -217,7 +233,8 @@ try {
     await tab.getByLabel('Product search').press('Enter');
     await tab.getByRole('link', { name: 'Go' }).click();
     await new Promise(r => setTimeout(r, 300));
-    const saved = await call('web_record', { site, action: 'stop', name: 'recorded', description: 'Search by hand' });
+    const saved = await announces('web_record stop',
+      () => call('web_record', { site, action: 'stop', name: 'recorded', description: 'Search by hand' }));
     assert.match(saved, /"product_search": \{\s*"description": "Value for Product search",\s*"default": "nuts"/);
     assert.match(saved, /"action": "click",\s*"role": "link",\s*"name": "Go"/);
     assert.match(await call('localhost_recorded', { product_search: 'dates' }), /Results for dates/);
@@ -245,8 +262,10 @@ try {
     assert.match(stdout, /– not checked yet {2}github_com_trending: [\s\S]*npx -y anysite-mcp add github\.com\/trending/);
   });
 
-  await call('web_delete_shortcut', { site, name: 'search' });
-  assert(listChanged > 0, 'the server announced its new tools with notifications/tools/list_changed');
+  await step('deleting a shortcut removes its tool', async () => {
+    await announces('web_delete_shortcut', () => call('web_delete_shortcut', { site, name: 'search' }));
+    assert(!(await c.listTools()).tools.some(t => t.name === 'localhost_search'));
+  });
   console.log('all ok');
 } finally {
   await c.close();

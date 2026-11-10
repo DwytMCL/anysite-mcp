@@ -73,7 +73,7 @@ export default ({ z, kit }) => {
           model: z.string().optional().describe('Model from the mode picker, e.g. "Pro", "Flash", "Flash-Lite"'),
           tool: z.string().optional().describe('Tool to switch on first, e.g. "Create image", "Create video", "Deep Research"'),
           timeout_seconds: z.number().min(10).max(900).optional() },
-        async run(p, { prompt, chat, files, model, tool: useTool, timeout_seconds = 300 }) {
+        async run(p, { prompt, chat, files, model, tool: useTool, timeout_seconds = 300 }, site, /** @type {{ progress?: Function }} */ { progress } = {}) {
           if (!chat) await p.goto(HOME_URL);
           else if (chat !== 'current') await openChat(p, chat);
           const box = p.getByRole('textbox', { name: /prompt|ask gemini/i }).first();
@@ -101,8 +101,11 @@ export default ({ z, kit }) => {
           const stop = p.getByRole('button', { name: /stop (response|generating)/i });
           const reply = p.locator('xpath=(//user-query)[last()]/following::model-response[1]');
           let last = '', stableFor = 0, done = false;
-          for (const end = Date.now() + timeout_seconds * 1000; Date.now() < end && !done;) {
+          const began = Date.now();
+          for (let i = 1, end = began + timeout_seconds * 1000; Date.now() < end && !done; i++) {
             await kit.sleep(1000);
+            const secs = Math.round((Date.now() - began) / 1000);
+            if (i % 5 === 0) progress?.(Math.min(secs, timeout_seconds), timeout_seconds, `Waiting for Gemini's reply (${secs} s)`);
             const now = await reply.locator('message-content').first().innerText().catch(() => '');
             const imgs = await reply.locator('img[src^="http"], img[src^="blob:"]').count().catch(() => 0);
             stableFor = now === last ? stableFor + 1000 : 0;

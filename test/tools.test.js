@@ -146,3 +146,16 @@ test('web_extract declares its outputSchema', async () => {
   assert.deepEqual(t.outputSchema.required, ['rows']);
   assert.equal(/** @type {any} */ (t.outputSchema.properties).rows.type, 'array');
 });
+
+test('pack tools get progress(done, total, message), sent only when the client asks', async () => {
+  writeFileSync(join(home, 'sites', 'slowpack.js'), `export default () => ({ url: 'https://slow.test/',
+    tools: { run: { description: 'Slow', run: async (p, a, site, { progress }) => {
+      await progress(1, 2, 'half'); await progress(2, 2, 'done'); return 'ran'; } } } });`);
+  const site = await useSite('slowpack');
+  site.page = { isClosed: () => false }; // skip starting Chrome: this tool never touches the page
+  const updates = [];
+  const r = await client.callTool({ name: 'slowpack_run', arguments: {} }, { onprogress: u => updates.push(u) });
+  assert.ok(!r.isError, JSON.stringify(r.content));
+  assert.deepEqual(updates, [{ progress: 1, total: 2, message: 'half' }, { progress: 2, total: 2, message: 'done' }]);
+  assert.ok(!(await client.callTool({ name: 'slowpack_run', arguments: {} })).isError, 'no progressToken: no updates, no error');
+});
