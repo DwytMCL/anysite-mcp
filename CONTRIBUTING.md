@@ -83,3 +83,4 @@ done (npm, the GitHub release, the registry listing) are skipped. Tags from befo
 
 Plain modern JavaScript (ES modules, Node 22+), no build step, no new dependencies unless there's no other way.
 Keep comments for the *why*.
+
