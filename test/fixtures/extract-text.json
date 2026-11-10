@@ -1,0 +1,6 @@
+{
+  "plain": "[\n  {\n    \"text\": \"Apples fresh\",\n    \"link\": \"http://localhost:PORT/Apples\"\n  },\n  {\n    \"text\": \"Pears fresh\",\n    \"link\": \"http://localhost:PORT/Pears\"\n  }\n]",
+  "fields": "[\n  {\n    \"title\": \"Apples\",\n    \"url\": \"/Apples\"\n  },\n  {\n    \"title\": \"Pears\",\n    \"url\": \"/Pears\"\n  }\n]",
+  "empty_field": "[\n  {\n    \"buy\": null\n  },\n  {\n    \"buy\": null\n  }\n]\n\nNote: \"buy\" came back empty on every row. Check its role and name with web_snapshot on one row (give ref or role/name).",
+  "no_match": "[]\n\nNote: nothing matched row. Check the page with web_snapshot."
+}
