@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Built on MCP TypeScript SDK v2 (`@modelcontextprotocol/server`); no change for clients. Tool input schemas now
+  declare JSON Schema 2020-12 (the 2025-11-25 protocol's default) instead of draft-07, with the same content.
 - `doctor` leaves optional parameters empty when it checks a shortcut, instead of filling them with "test". The
   library's `github.com/trending` showed ✗ because the check opened the trending page for a language called "test",
   which has no rows. The shortcut itself was fine, so there's nothing to re-add.

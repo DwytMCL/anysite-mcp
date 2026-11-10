@@ -1,9 +1,8 @@
 // Serves a small test shop on localhost, starts the server on it with a throwaway data dir and a headless Chrome,
 // and checks snapshots, refs, shortcuts (tested saving, self-repair, typed params), extract, permissions, record
 // mode, `add` and `doctor`. Needs no network.
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { ElicitRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import { Client } from '@modelcontextprotocol/client';
+import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
 import { chromium } from 'playwright-core';
 import assert from 'node:assert';
 import { execFile } from 'node:child_process';
@@ -56,13 +55,17 @@ const serverJs = fileURLToPath(new URL('./server.js', import.meta.url));
 const cli = async (...args) => (await promisify(execFile)(process.execPath, [serverJs, ...args], { env })).stdout;
 const settings = s => writeFileSync(join(home, 'settings.json'), JSON.stringify({ sites: { localhost: s } }));
 
+/** @type {'accept' | 'decline' | 'cancel'} */
 let answer = 'accept';
 const c = new Client({ name: 'selfcheck', version: '0' }, { capabilities: { elicitation: {} } });
-c.setRequestHandler(ElicitRequestSchema, () => ({ action: answer }));
+c.setRequestHandler('elicitation/create', () => ({ action: answer }));
+let listChanged = 0;
+c.setNotificationHandler('notifications/tools/list_changed', () => { listChanged++; });
 await c.connect(new StdioClientTransport({ command: process.execPath, args: [serverJs, 'gemini', site], env }));
 const raw = (name, args) => c.callTool({ name, arguments: args });
-const call = async (name, args) => { const r = await raw(name, args); assert(!r.isError, r.content[0].text); return r.content[0].text; };
-const fails = async (name, args, re) => { const r = await raw(name, args); assert(r.isError, `${name} should fail`); assert.match(r.content[0].text, re); };
+const textOf = r => /** @type {{ text: string }} */ (r.content[0]).text;
+const call = async (name, args) => { const r = await raw(name, args); assert(!r.isError, textOf(r)); return textOf(r); };
+const fails = async (name, args, re) => { const r = await raw(name, args); assert(r.isError, `${name} should fail`); assert.match(textOf(r), re); };
 const step = (name, fn) => fn().then(() => console.log(`ok  ${name}`));
 
 try {
@@ -224,6 +227,7 @@ try {
   });
 
   await call('web_delete_shortcut', { site, name: 'search' });
+  assert(listChanged > 0, 'the server announced its new tools with notifications/tools/list_changed');
   console.log('all ok');
 } finally {
   await c.close();
