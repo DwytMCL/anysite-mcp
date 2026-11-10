@@ -221,6 +221,10 @@ Each tool takes `site`: a pack name like `gemini`, or a domain like `github.com`
 | `web_save_shortcut`, `web_list_shortcuts`, `web_delete_shortcut` | Turn a working sequence into a tool named `<site>_<name>` (tried once before it's saved) |
 | `web_record` | Watch the user do a job in the site's window and save it as a shortcut |
 
+Every tool carries MCP annotations for clients that use them, for example to ask before a destructive tool runs.
+Tools that only read are marked read-only, and tools that can change something on a page (clicking, typing,
+choosing, pressing keys, uploading) are marked destructive. Shortcut tools are marked by what their steps do.
+
 ### Packs included
 
 | Pack | Tools |
@@ -337,6 +341,9 @@ export default ({ z, kit }) => ({
   },
 });
 ```
+
+Mark a tool `writes: true` if it changes something. It then obeys a site's read-only and confirm settings, and
+clients see it as destructive. Mark it `readOnly: true` if it only reads, as `top` could.
 
 Then run `npx -y anysite-mcp login hn` (or just use `site: "hn"`), and the agent gets `hn_top`. A pack in
 `~/.anysite-mcp/sites` with the same name as a bundled one replaces it. **Pull requests with new packs are

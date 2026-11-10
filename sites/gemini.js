@@ -59,6 +59,7 @@ export default ({ z, kit }) => {
     url: HOME_URL,
     tools: {
       list_chats: {
+        readOnly: true,
         description: 'List recent Gemini chats from the sidebar with their URLs, newest first.',
         run: async p => (await chatLinks(p)).map(l => `${l.title}\t${l.url}`).join('\n'),
       },

@@ -94,3 +94,31 @@ test('tool input schemas: frozen JSON Schema for a shortcut and a pack tool', as
       tool: { type: 'string', description: 'Tool to switch on first, e.g. "Create image", "Create video", "Deep Research"' },
       timeout_seconds: { type: 'number', minimum: 10, maximum: 900 } } });
 });
+
+test('tool annotations: every hint is set explicitly', async () => {
+  await useSite('gemini');
+  writeFileSync(join(home, 'sites', 'example.net.json'), JSON.stringify({
+    look: { description: 'Look', steps: [{ action: 'open', url: '/' }, { action: 'read' }] },
+    act: { description: 'Act', steps: [{ action: 'open', url: '/' }, { action: 'click', role: 'button', name: 'Go' }] } }));
+  await useSite('example.net');
+  const hints = async n => (await toolNamed(n)).annotations;
+  assert.deepEqual(await hints('web_click'), { readOnlyHint: false, destructiveHint: true, openWorldHint: true });
+  assert.deepEqual(await hints('web_extract'), { readOnlyHint: true, openWorldHint: true });
+  assert.deepEqual(await hints('web_download'), { readOnlyHint: false, destructiveHint: false, openWorldHint: true });
+  assert.deepEqual(await hints('web_save_shortcut'),
+    { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true });
+  assert.deepEqual(await hints('web_list_shortcuts'), { readOnlyHint: true, openWorldHint: false });
+  assert.deepEqual(await hints('web_delete_shortcut'), { readOnlyHint: false, destructiveHint: true, openWorldHint: false });
+  assert.deepEqual(await hints('gemini_list_chats'), { readOnlyHint: true, destructiveHint: false, openWorldHint: true });
+  assert.deepEqual(await hints('gemini_ask'), { readOnlyHint: false, destructiveHint: false, openWorldHint: true });
+  assert.deepEqual(await hints('example_net_look'), { readOnlyHint: true, openWorldHint: true });
+  assert.deepEqual(await hints('example_net_act'), { readOnlyHint: false, destructiveHint: true, openWorldHint: true });
+});
+
+test('tool annotations: pack tools follow writes and readOnly', async () => {
+  await useSite('notebooklm');
+  assert.deepEqual((await toolNamed('notebooklm_add_source')).annotations,
+    { readOnlyHint: false, destructiveHint: true, openWorldHint: true });
+  assert.deepEqual((await toolNamed('notebooklm_list_notebooks')).annotations,
+    { readOnlyHint: true, destructiveHint: false, openWorldHint: true });
+});
