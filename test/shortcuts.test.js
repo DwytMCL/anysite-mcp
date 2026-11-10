@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 process.env.ANYSITE_HOME = mkdtempSync(join(tmpdir(), 'anysite-sc-'));
-const { checkShortcut, fillFrom, paramSpec } = await import('../lib/shortcuts.js');
+const { checkShortcut, doctorArgs, fillFrom, paramSpec } = await import('../lib/shortcuts.js');
 
 test('checkShortcut: accepts a good shortcut', () => {
   assert.doesNotThrow(() => checkShortcut({ params: { q: 'Query' }, steps: [
@@ -38,4 +38,11 @@ test('fillFrom: fills {{params}} everywhere, with defaults and optional params',
     { value: 'find kiwi x3', fields: [{ name: 'kiwi' }], nth: 1, exact: true });
   assert.equal(fillFrom({ n: { description: 'N', type: 'number' } }, { n: 0 })('{{n}}'), '0', 'falsy values count');
   assert.throws(() => fillFrom({ q: 'Query' }, {})('{{q}}'), /missing argument "q"/);
+});
+
+test('doctorArgs: optional params stay empty, so doctor opens the page a user gets by leaving them out', () => {
+  const params = { q: 'Query', n: { description: 'How many', type: 'number', default: 5 }, language: { description: 'Language', optional: true } };
+  assert.deepEqual(doctorArgs(params), { q: 'test', n: 5, language: undefined });
+  assert.equal(fillFrom(params, doctorArgs(params))('https://github.com/trending/{{language}}?since=daily'), 'https://github.com/trending/?since=daily');
+  assert.deepEqual(doctorArgs(undefined), {});
 });

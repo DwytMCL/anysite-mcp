@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- `doctor` leaves optional parameters empty when it checks a shortcut, instead of filling them with "test". The
+  library's `github.com/trending` showed ✗ because the check opened the trending page for a language called "test",
+  which has no rows. The shortcut itself was fine, so there's nothing to re-add.
+
 ## 0.5.1
 
 - `anysite-mcp library search <words>`, `library list [site]` and `library info <site>[/<name>]` find shared
