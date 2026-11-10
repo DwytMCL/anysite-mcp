@@ -55,8 +55,8 @@ async function main() {
     if (printed !== version) fail([`The installed server.js --version printed "${printed}", expected "${version}".`]);
     console.log(`Installed server.js --version: ${printed}.`);
 
-    const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
-    const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js');
+    const { Client } = await import('@modelcontextprotocol/client');
+    const { StdioClientTransport } = await import('@modelcontextprotocol/client/stdio');
     const client = new Client({ name: 'smoke-pack', version: '0' });
     await client.connect(new StdioClientTransport({ command: process.execPath, args: [serverJs], env, stderr: 'inherit' }));
     try {

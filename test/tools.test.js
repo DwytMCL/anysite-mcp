@@ -3,8 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
+import { Client, InMemoryTransport } from '@modelcontextprotocol/client';
 import { z } from 'zod';
 
 // config.js reads ANYSITE_HOME when it loads, so set it before importing tools.js.
@@ -18,6 +17,10 @@ await server.connect(serverSide);
 await client.connect(clientSide);
 const names = async () => (await client.listTools()).tools.map(t => t.name);
 const toolNamed = async n => (await client.listTools()).tools.find(t => t.name === n);
+
+test('the server speaks the 2025-11-25 protocol revision', () => {
+  assert.equal(client.getNegotiatedProtocolVersion(), '2025-11-25');
+});
 
 test('zodParam: types, optional, default and description', () => {
   assert.ok(zodParam({ description: 'N', type: 'number' }).safeParse(3).success);
@@ -69,7 +72,7 @@ test('useSite: saved shortcuts become <prefix>_<name> tools; re-adding replaces'
   assert.match((await toolNamed('example_com_find')).description, /Find it again/);
 });
 
-// Frozen under SDK v1: a change in how zod becomes JSON Schema would change what clients see.
+// Frozen under SDK v1 (v2 only moved $schema to 2020-12): a change in how zod becomes JSON Schema would change what clients see.
 test('tool input schemas: frozen JSON Schema for a shortcut and a pack tool', async () => {
   mkdirSync(join(home, 'sites'), { recursive: true });
   writeFileSync(join(home, 'sites', 'example.org.json'), JSON.stringify({
@@ -78,11 +81,11 @@ test('tool input schemas: frozen JSON Schema for a shortcut and a pack tool', as
   await useSite('example.org');
   await useSite('gemini');
   assert.deepEqual((await toolNamed('example_org_snap')).inputSchema, {
-    $schema: 'http://json-schema.org/draft-07/schema#', type: 'object', required: ['q'],
+    $schema: 'https://json-schema.org/draft/2020-12/schema', type: 'object', required: ['q'],
     properties: { q: { type: 'string', description: 'Query' }, n: { type: 'number', description: 'How many (default: 3)' },
       all: { type: 'boolean', description: 'All' } } });
   assert.deepEqual((await toolNamed('gemini_ask')).inputSchema, {
-    $schema: 'http://json-schema.org/draft-07/schema#', type: 'object', required: ['prompt'],
+    $schema: 'https://json-schema.org/draft/2020-12/schema', type: 'object', required: ['prompt'],
     properties: {
       prompt: { type: 'string' },
       chat: { type: 'string', description: 'Continue a chat: "current" for the open one, or a chat title (or part), id or URL' },

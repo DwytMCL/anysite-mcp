@@ -80,8 +80,7 @@ test('pack tools marked writes: true name the tool when blocked', async () => {
   writeFileSync(join(home, 'sites', 'fakepack.js'), `export default () => ({ url: 'https://fake.test/',
     tools: { add_source: { description: 'Add a source', writes: true, run: async () => 'ran' } } });`);
   writeSiteSettings(join(home, 'settings.json'), 'fakepack', { read_only: true });
-  const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
-  const { InMemoryTransport } = await import('@modelcontextprotocol/sdk/inMemory.js');
+  const { Client, InMemoryTransport } = await import('@modelcontextprotocol/client');
   const { server, useSite } = await import('../lib/tools.js');
   await useSite('fakepack');
   const [a, b] = InMemoryTransport.createLinkedPair();
@@ -90,7 +89,7 @@ test('pack tools marked writes: true name the tool when blocked', async () => {
   try {
     const r = await client.callTool({ name: 'fakepack_add_source', arguments: {} });
     assert(r.isError);
-    assert.match(r.content[0].text, /fakepack is read-only, so the agent can't use fakepack_add_source\./);
+    assert.match(/** @type {{ text: string }} */ (r.content[0]).text, /fakepack is read-only, so the agent can't use fakepack_add_source\./);
   } finally {
     await client.close();
   }
