@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- CI checks the server with a second MCP client, the MCP Inspector CLI (`npm run test:inspector`): the
+  handshake, the tool list with its `--strict` schema checks, and a tool call.
 - Progress notifications: `web_wait` reports each second, and `gemini_ask` (including Deep Research) reports
   every 5 s while it waits for the reply, for clients that ask for progress. Packs get `progress` as `run`'s
   fourth argument.

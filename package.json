@@ -14,7 +14,8 @@
     "test:e2e": "node selfcheck.js",
     "lint": "eslint . && tsc -p .",
     "check:versions": "node scripts/check-versions.js",
-    "test:pack": "node scripts/smoke-pack.js"
+    "test:pack": "node scripts/smoke-pack.js",
+    "test:inspector": "node scripts/inspector-check.js"
   },
   "keywords": [
     "mcp",

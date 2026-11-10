@@ -8,6 +8,7 @@ Thanks for helping. The easiest and most useful contributions are **site packs**
 git clone https://github.com/DwytMCL/anysite-mcp && cd anysite-mcp
 npm install
 npm test                       # unit tests, then a headless self-check against a local page; no network needed
+npm run test:inspector         # handshake, tool schemas (--strict) and a tool call through the MCP Inspector CLI
 claude mcp add anysite-dev -- node "$PWD/server.js"
 ```
 
