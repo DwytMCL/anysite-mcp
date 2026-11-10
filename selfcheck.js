@@ -35,7 +35,8 @@ const pages = {
   // Choosing a sort order loads another page a moment later, and its list arrives a moment after that.
   '/sort': `<title>Sort</title><select aria-label="Sort" onchange="setTimeout(() => location.href = '/sorted', 300)">
     <option>Name</option><option>Price</option></select>`,
-  '/sorted': `<title>Sorted</title><div id="list"></div><script>setTimeout(() => list.innerHTML = ${JSON.stringify(fruit)}, 700)</script>`,
+  '/sorted': `<title>Sorted</title><div id="list"></div><template id="later">${fruit}</template>
+    <script>setTimeout(() => list.innerHTML = later.innerHTML, 700)</script>`,
   '/forms': `<title>Forms</title><a href="/signup">Create account</a><a href="/logout">Leave</a>
     <form method="post" action="/order"><button>Continue</button></form>
     <form action="/search"><input name="q" aria-label="Keyword"></form>`,
