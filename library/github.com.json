@@ -14,5 +14,31 @@
       { "action": "extract", "role": "article", "limit": 25,
         "fields": { "repo": { "role": "heading" }, "about": { "role": "paragraph" } } }
     ]
+  },
+  "search_repos": {
+    "description": "Search GitHub repositories with qualifiers (stars, created, pushed, topic, language). Returns the results page as text: repo, description, topics, language, stars, last updated.",
+    "params": {
+      "query": {
+        "description": "GitHub search query with qualifiers, spaces as +, e.g. created:>2026-10-27+stars:150..900+topic:ai-agents",
+        "type": "string"
+      },
+      "sort": {
+        "description": "Sort field: stars, forks, updated, or empty for best match",
+        "type": "string",
+        "optional": true,
+        "default": "stars"
+      }
+    },
+    "steps": [
+      {
+        "action": "open",
+        "url": "https://github.com/search?q={{query}}&type=repositories&s={{sort}}&o=desc",
+        "show": "none"
+      },
+      {
+        "action": "read",
+        "expect": "results"
+      }
+    ]
   }
 }
