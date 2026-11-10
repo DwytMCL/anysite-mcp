@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Progress notifications: `web_wait` reports each second, and `gemini_ask` (including Deep Research) reports
+  every 5 s while it waits for the reply, for clients that ask for progress. Packs get `progress` as `run`'s
+  fourth argument.
+- Saving, recording and deleting a shortcut tell the client that the tool list changed
+  (`notifications/tools/list_changed`), and the self-check now tests each of them.
 - `web_extract` and `web_list_shortcuts` also return structured output (MCP `structuredContent`, with an
   `outputSchema`): `{ rows, note? }` and `{ site, file, shortcuts: [{ name, tool, description, params, steps }] }`.
   Their text is unchanged, so clients that read the text see no difference.

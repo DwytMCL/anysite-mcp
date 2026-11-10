@@ -345,6 +345,10 @@ export default ({ z, kit }) => ({
 Mark a tool `writes: true` if it changes something. It then obeys a site's read-only and confirm settings, and
 clients see it as destructive. Mark it `readOnly: true` if it only reads, as `top` could.
 
+For a tool that takes a while, `run` gets a fourth argument, `{ progress }`. Call `progress(done, total, message)`
+now and then, e.g. `progress(30, 300, 'Waiting for the reply (30 s)')`. Clients that show progress get it, and for
+the rest it does nothing.
+
 Then run `npx -y anysite-mcp login hn` (or just use `site: "hn"`), and the agent gets `hn_top`. A pack in
 `~/.anysite-mcp/sites` with the same name as a bundled one replaces it. **Pull requests with new packs are
 welcome.**
