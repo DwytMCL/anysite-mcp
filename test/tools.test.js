@@ -68,3 +68,26 @@ test('useSite: saved shortcuts become <prefix>_<name> tools; re-adding replaces'
   assert.equal(all.filter(n => n === 'example_com_find').length, 1, 'replaced, not duplicated');
   assert.match((await toolNamed('example_com_find')).description, /Find it again/);
 });
+
+// Frozen under SDK v1: a change in how zod becomes JSON Schema would change what clients see.
+test('tool input schemas: frozen JSON Schema for a shortcut and a pack tool', async () => {
+  mkdirSync(join(home, 'sites'), { recursive: true });
+  writeFileSync(join(home, 'sites', 'example.org.json'), JSON.stringify({
+    snap: { description: 'S', params: { q: 'Query', n: { description: 'How many', type: 'number', default: 3 },
+      all: { description: 'All', type: 'boolean', optional: true } }, steps: [{ action: 'read' }] } }));
+  await useSite('example.org');
+  await useSite('gemini');
+  assert.deepEqual((await toolNamed('example_org_snap')).inputSchema, {
+    $schema: 'http://json-schema.org/draft-07/schema#', type: 'object', required: ['q'],
+    properties: { q: { type: 'string', description: 'Query' }, n: { type: 'number', description: 'How many (default: 3)' },
+      all: { type: 'boolean', description: 'All' } } });
+  assert.deepEqual((await toolNamed('gemini_ask')).inputSchema, {
+    $schema: 'http://json-schema.org/draft-07/schema#', type: 'object', required: ['prompt'],
+    properties: {
+      prompt: { type: 'string' },
+      chat: { type: 'string', description: 'Continue a chat: "current" for the open one, or a chat title (or part), id or URL' },
+      files: { type: 'array', items: { type: 'string' }, description: 'Local files to attach' },
+      model: { type: 'string', description: 'Model from the mode picker, e.g. "Pro", "Flash", "Flash-Lite"' },
+      tool: { type: 'string', description: 'Tool to switch on first, e.g. "Create image", "Create video", "Deep Research"' },
+      timeout_seconds: { type: 'number', minimum: 10, maximum: 900 } } });
+});
