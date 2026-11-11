@@ -1,0 +1,4 @@
+{
+  "version": 2,
+  "shortcuts": { "find": { "description": "From the future", "steps": [{ "action": "read" }], "newField": true } }
+}

@@ -39,8 +39,19 @@ contract.
 
 - **`settings.json`:** `{ "sites": { "<site>": { "read_only", "confirm", "allowed_domains" } } }`. Permissions are set
   by the user only; the agent has no tool to change them.
-- **`sites/<site>.json`**, the shortcut file: its format is versioned (see the format version rules once they land in
-  v0.7.0). A newer anysite-mcp reads every older version.
+- **`sites/<site>.json`**, the shortcut file, is versioned. Its JSON Schema is `schema/shortcuts.v1.json`
+  (published at `dwytmcl.github.io/anysite-mcp/schema/shortcuts.v1.json`). The rules:
+  - Version 1 is `{ "$schema", "version": 1, "shortcuts": { name: shortcut } }`. A file is an envelope only when its
+    top-level `version` is a number; anything else is version 0, the plain `{ name: shortcut }` map. The code never
+    looks for a `shortcuts` key, because that could be a shortcut's name.
+  - A newer anysite-mcp reads every older version. Loading never rewrites a file.
+  - The first write to a version 0 file copies it to `<name>.v0.bak` and writes version 1. Restoring the `.bak`
+    (and using an older anysite-mcp) is the way back.
+  - A file with a higher version than this anysite-mcp knows is refused ("written for a newer anysite-mcp") and
+    never rewritten.
+  - A param may carry an `example`, which `doctor` tries before the `default`. A shortcut may carry
+    `"needsSignIn": true`; the library's weekly check leaves it unchecked instead of marking it broken.
+  - New optional fields are additions within a version; a change that older readers would misread needs a new version.
 - **`sites/<site>.js`**, a user pack: see `docs/pack-api.md`.
 - **`profiles/<site>/`** are Chrome's own files. They are not a format of ours.
 

@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dwytmcl.github.io/anysite-mcp/schema/shortcuts.v1.json",
+  "title": "anysite-mcp shortcut file, format version 1",
+  "description": "A shortcut file: { version: 1, shortcuts: { name: shortcut } }. $defs.shortcutMap is the plain { name: shortcut } map of format version 0, which the library's repo files still use.",
+  "type": "object",
+  "required": ["version", "shortcuts"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "const": 1 },
+    "shortcuts": { "$ref": "#/$defs/shortcutMap" }
+  },
+  "$defs": {
+    "shortcutMap": {
+      "type": "object",
+      "propertyNames": { "pattern": "^[a-z][a-z0-9_]*$" },
+      "additionalProperties": { "$ref": "#/$defs/shortcut" }
+    },
+    "scalar": { "type": ["string", "number", "boolean"] },
+    "param": {
+      "oneOf": [
+        { "type": "string", "description": "The parameter's description." },
+        {
+          "type": "object",
+          "required": ["description"],
+          "properties": {
+            "description": { "type": "string" },
+            "type": { "enum": ["string", "number", "boolean"] },
+            "optional": { "type": "boolean" },
+            "default": { "$ref": "#/$defs/scalar" },
+            "example": { "$ref": "#/$defs/scalar", "description": "A value that works; `doctor` uses it before the default." }
+          }
+        }
+      ]
+    },
+    "step": {
+      "type": "object",
+      "required": ["action"],
+      "properties": {
+        "action": { "enum": ["snapshot", "open", "click", "type", "select", "press", "upload", "read", "extract", "wait", "download"] },
+        "expect": { "type": "string" },
+        "fallbacks": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+    "shortcut": {
+      "type": "object",
+      "required": ["description", "steps"],
+      "properties": {
+        "description": { "type": "string" },
+        "params": { "type": "object", "additionalProperties": { "$ref": "#/$defs/param" } },
+        "steps": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/step" } },
+        "needsSignIn": { "type": "boolean", "description": "True if the shortcut only works signed in; the weekly health check leaves it unchecked." }
+      }
+    }
+  }
+}

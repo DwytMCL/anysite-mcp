@@ -4,6 +4,13 @@
 
 - A command that fails (a profile that will not open, a bad settings file) now prints one message and exits 1 instead of a stack trace.
 - A saved-shortcuts file that is not valid JSON now says which file and what is wrong.
+- Shortcut files are now versioned: `sites/<site>.json` is written as `{ "version": 1, "shortcuts": { ... } }`. Old files
+  still load and are not touched until the first save, which first copies the old file to `<site>.v0.bak`. **anysite-mcp
+  0.6.x and older cannot read a version 1 file**; restore the `.bak` to go back. A file written for a newer version is
+  refused and left alone. `add` accepts both forms.
+- A shortcut param can have an `example`, which `doctor` tries before the default (a param with no default no longer
+  has to be tried with "test"). A shortcut can be marked `"needsSignIn": true`; the library shows it as "needs sign-in" and does not
+  mark it broken.
 
 ## 0.6.0
 

@@ -1,0 +1,3 @@
+{
+  "shortcuts": { "description": "A shortcut that happens to be called shortcuts", "steps": [{ "action": "read" }] }
+}

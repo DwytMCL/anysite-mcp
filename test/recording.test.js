@@ -53,5 +53,5 @@ test('stopRecording saves the shortcut with its params', () => {
   assert.equal(sc.description, 'Find things');
   assert.equal(sc.steps.length, 2);
   assert.ok(sc.params, 'typed value became a param');
-  assert.deepEqual(JSON.parse(readFileSync(site.shortcutFile, 'utf8')).find, sc);
+  assert.deepEqual(JSON.parse(readFileSync(site.shortcutFile, 'utf8')).shortcuts.find, sc);
 });

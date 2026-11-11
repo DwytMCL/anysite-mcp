@@ -170,6 +170,7 @@
       unchecked: { icon: '–', label: 'not checked yet' },
       stale: { icon: '?', label: 'not recently checked' }
     };
+    if (shortcut.needsSignIn) return { status: 'unchecked', icon: badges.unchecked.icon, label: 'needs sign-in, not checked', checked: null, detail: '' };
     var status = 'unchecked';
     if (entry && badges[entry.status] && shortcut.stepsHash && entry.steps === shortcut.stepsHash) {
       var age = new Date(now).getTime() - new Date(checked).getTime();
