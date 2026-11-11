@@ -1,0 +1,18 @@
+{
+  "inbox": {
+    "description": "Read the signed-in inbox",
+    "needsSignIn": true,
+    "steps": [
+      { "action": "open", "url": "https://example.com/inbox" },
+      { "action": "read", "role": "main" }
+    ]
+  },
+  "search": {
+    "description": "Search Example for a word",
+    "params": { "q": { "description": "Word to search for", "example": "kiwi" } },
+    "steps": [
+      { "action": "open", "url": "https://example.com/search?q={{q}}" },
+      { "action": "read", "role": "main" }
+    ]
+  }
+}

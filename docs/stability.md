@@ -25,7 +25,7 @@ Tool descriptions are not part of the contract; the wording may improve.
 
 Commands and flags: `anysite-mcp [site ...]`, `login <site>`, `record <site> <name>`,
 `add <site>[/<name>] [--from <file or URL>] [--force]`, `library search <words>`, `library list [site]`,
-`library info <site>[/<name>]`, `doctor [site ...]`,
+`library info <site>[/<name>]`, `library check`, `doctor [site ...]`,
 `permissions <site> [--read-only | --read-write] [--confirm | --no-confirm] [--allow <domain,...> | --allow-any | --allow-default]`,
 `--version`, `--help`. The exit code is 0 on success and 1 on an error. The wording of messages is not part of the
 contract.
@@ -65,7 +65,10 @@ refused with a clear message and a newer anysite-mcp reads every older pack vers
 ## The shortcuts library
 
 Published at `dwytmcl.github.io/anysite-mcp/library`: `index.json` and `<site>.json` stay at their current URLs and
-stay readable by every released CLI. New formats are published beside them under `v1/`, never in their place.
+stay readable by every released CLI. New formats are published beside them under `v1/`, never in their place:
+`v1/index.json` and `v1/<site>.json` (the version 1 envelope of the shortcut file format). A CLI reads `v1/index.json`
+first and falls back to `index.json` when there is none; `add` reads `v1/<site>.json` and falls back to the raw file
+in the repository. CI runs the published 0.6.0 CLI against every build (`npm run test:library`) to keep this true.
 
 ## Accepted Inspector warnings
 

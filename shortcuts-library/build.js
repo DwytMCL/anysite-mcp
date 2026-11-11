@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 // Builds the Shortcut Library site into _site/: the page files plus library/index.json,
 // one list made from every library/<site>.json (GitHub Pages can't list a folder), and
-// library/health.json when the weekly health check (scripts/library-health.js) has written one.
+// library/health.json when the weekly health check (scripts/library-health.js) has written one. The files at library/ stay
+// exactly as before for released CLIs; the versioned copies (envelope files and an index) go under library/v1/.
 import { readdirSync, readFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync, rmSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { extractMarked, stepsHash } from '../lib/library.js';
+import { SHORTCUT_FORMAT, SHORTCUTS_SCHEMA } from '../lib/shortcuts.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..');
@@ -33,7 +35,7 @@ export function build({ libDir = join(root, 'library'), out = join(root, '_site'
   const drift = healthForDrift();
   if (drift) throw new Error(drift);
   rmSync(out, { recursive: true, force: true });
-  mkdirSync(join(out, 'library'), { recursive: true });
+  mkdirSync(join(out, 'library', `v${SHORTCUT_FORMAT}`), { recursive: true });
   for (const f of ['index.html', 'style.css', 'app.js']) copyFileSync(join(here, f), join(out, f));
   mkdirSync(join(out, 'schema'), { recursive: true });
   copyFileSync(join(root, 'schema', 'shortcuts.v1.json'), join(out, 'schema', 'shortcuts.v1.json'));
@@ -42,10 +44,15 @@ export function build({ libDir = join(root, 'library'), out = join(root, '_site'
   const files = readdirSync(libDir).filter(f => f.endsWith('.json') && !['index.json', 'health.json'].includes(f)).sort();
   for (const f of files) {
     copyFileSync(join(libDir, f), join(out, 'library', f));
-    shortcuts.push(...indexEntries(f.slice(0, -5), JSON.parse(readFileSync(join(libDir, f), 'utf8'))));
+    const data = JSON.parse(readFileSync(join(libDir, f), 'utf8'));
+    writeFileSync(join(out, 'library', `v${SHORTCUT_FORMAT}`, f),
+      JSON.stringify({ $schema: SHORTCUTS_SCHEMA, version: SHORTCUT_FORMAT, shortcuts: data }, null, 2) + '\n');
+    shortcuts.push(...indexEntries(f.slice(0, -5), data));
   }
-  writeFileSync(join(out, 'library', 'index.json'),
-    JSON.stringify({ generated: new Date().toISOString(), sites: files.map(f => f.slice(0, -5)), shortcuts }, null, 2) + '\n');
+  const generated = new Date().toISOString(), sites = files.map(f => f.slice(0, -5));
+  writeFileSync(join(out, 'library', 'index.json'), JSON.stringify({ generated, sites, shortcuts }, null, 2) + '\n');
+  writeFileSync(join(out, 'library', `v${SHORTCUT_FORMAT}`, 'index.json'),
+    JSON.stringify({ version: SHORTCUT_FORMAT, generated, sites, shortcuts }, null, 2) + '\n');
   const hasHealth = existsSync(health);
   if (hasHealth) copyFileSync(health, join(out, 'library', 'health.json'));
   return { shortcuts: shortcuts.length, sites: files.length, health: hasHealth };
