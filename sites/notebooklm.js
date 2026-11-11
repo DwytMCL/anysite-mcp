@@ -30,6 +30,7 @@ export default ({ z, kit }) => {
   const notebookArg = z.string().optional().describe('Notebook title (or part of it), id or URL. Omit to use the open notebook.');
 
   return {
+    version: 1,
     url: HOME_URL,
     tools: {
       list_notebooks: {

@@ -59,7 +59,8 @@ contract.
 
 A pack is a module whose default export is `({ z, kit }) => ...`. Kept: the `kit` helpers, a tool's `writes`,
 `readOnly` and `input` fields, and `run(page, input, site, { progress })` with its four arguments. The reference is
-`docs/pack-api.md`.
+`docs/pack-api.md`. A pack may carry `version` (none means 1); a pack with a later version than the server knows is
+refused with a clear message and a newer anysite-mcp reads every older pack version.
 
 ## The shortcuts library
 
