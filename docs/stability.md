@@ -57,4 +57,11 @@ stay readable by every released CLI. New formats are published beside them under
 
 ## Accepted Inspector warnings
 
-None yet; this list is filled in with the clean-up of the `--strict` warnings.
+`npm run test:inspector` runs the MCP Inspector with `--strict`. These six warnings are accepted, because the
+fields are free-form on purpose (a shortcut's steps, a param's default and a row's columns have no fixed shape), and
+tightening them would change the frozen schemas. The check fails on any warning not listed here.
+
+- `web_extract` output: `rows[]` items are free-form objects (untyped-schema).
+- `web_save_shortcut` input: `steps[]` items are free-form objects (untyped-schema).
+- `web_save_shortcut` input: a param's `default` and the values in `test_args` may be a string, number or boolean (type-union).
+- `web_list_shortcuts` output: `params` and `steps[]` are free-form (untyped-schema).

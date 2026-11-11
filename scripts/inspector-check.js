@@ -11,6 +11,15 @@ import { promisify } from 'node:util';
 import { TOOLS } from './smoke-pack.js';
 
 const INSPECTOR = '@modelcontextprotocol/inspector@2.14.0';
+// Warnings accepted in docs/stability.md (free-form steps, params and rows are the point of those tools). Anything else fails.
+const ACCEPTED = [
+  'web_extract outputSchema.properties.rows.items.additionalProperties: untyped-schema',
+  'web_save_shortcut inputSchema.properties.params.additionalProperties.anyOf[1].properties.default: type-union',
+  'web_save_shortcut inputSchema.properties.steps.items.additionalProperties: untyped-schema',
+  'web_save_shortcut inputSchema.properties.test_args.additionalProperties: type-union',
+  'web_list_shortcuts outputSchema.properties.shortcuts.items.properties.params.additionalProperties: untyped-schema',
+  'web_list_shortcuts outputSchema.properties.shortcuts.items.properties.steps.items.additionalProperties: untyped-schema',
+];
 const serverJs = fileURLToPath(new URL('../server.js', import.meta.url));
 
 // Run npx through node rather than npx.cmd, which Windows only starts through a shell that would mangle the JSON
@@ -50,6 +59,9 @@ try {
   assert.equal(tools.example_com_find.annotations?.readOnlyHint, true, 'example_com_find is read-only');
   const findings = (list.schemaFindings || []).flatMap(t => t.findings.map(f => ({ tool: t.toolName, ...f })));
   assert.deepEqual(findings.filter(f => f.severity === 'error'), []);
+  const key = f => `${f.tool} ${f.schema}.${f.path}: ${f.rule}`;
+  const fresh = findings.map(key).filter(k => !ACCEPTED.includes(k));
+  assert.deepEqual(fresh, [], 'new Inspector warning(s): fix them, or accept them in ACCEPTED and docs/stability.md');
   console.log(`tools/list --strict: ${list.result.tools.length} tools, ${findings.length} schema warning(s)`);
   for (const f of findings) console.log(`  ${f.tool} ${f.schema}.${f.path}: ${f.rule}`);
 
