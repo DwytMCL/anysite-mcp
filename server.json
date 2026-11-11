@@ -26,6 +26,26 @@
           "name": "ANYSITE_CHROME",
           "description": "Path to the Chrome or Chromium binary",
           "isRequired": false
+        },
+        {
+          "name": "ANYSITE_HOME",
+          "description": "Where profiles, saved shortcuts and settings.json live (default ~/.anysite-mcp)",
+          "isRequired": false
+        },
+        {
+          "name": "ANYSITE_CHROME_ARGS",
+          "description": "Extra Chrome flags, e.g. --no-sandbox when running as root in a container",
+          "isRequired": false
+        },
+        {
+          "name": "ANYSITE_DOWNLOADS",
+          "description": "Folder for files saved by web_download (default ~/Downloads/anysite)",
+          "isRequired": false
+        },
+        {
+          "name": "ANYSITE_LIBRARY",
+          "description": "A folder or URL to read the shortcuts library from instead of the public one",
+          "isRequired": false
         }
       ]
     }
