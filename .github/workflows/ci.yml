@@ -38,6 +38,9 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run check:versions
+      - run: npm run check:licenses
+      # Fails only on high or critical advisories in runtime dependencies, since lint is required on every PR.
+      - run: npm run audit
 
   test:
     needs: lint

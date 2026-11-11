@@ -14,6 +14,8 @@
     "test:e2e": "node selfcheck.js",
     "lint": "eslint . && tsc -p .",
     "check:versions": "node scripts/check-versions.js",
+    "check:licenses": "node scripts/check-licenses.js",
+    "audit": "npm audit --omit=dev --audit-level=high",
     "test:pack": "node scripts/smoke-pack.js",
     "test:inspector": "node scripts/inspector-check.js"
   },

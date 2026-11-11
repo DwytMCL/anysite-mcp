@@ -16,6 +16,8 @@ On Linux as root (Docker, CI) Chrome needs `ANYSITE_CHROME_ARGS=--no-sandbox`.
 
 Before opening a pull request, run `npm run lint` (ESLint, plus a TypeScript check of all the code) and
 `npm test`. `npm run test:unit` runs only the unit tests in `test/`, which need no Chrome. Bug fixes come with a test.
+CI also runs `npm run check:licenses` (every runtime dependency has an allowed license) and `npm run audit` (fails on a
+high or critical advisory in a runtime dependency).
 
 ## Where things are
 
