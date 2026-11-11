@@ -87,7 +87,8 @@ jobs:
         if: matrix.os == 'ubuntu-latest' && matrix.node == 24
         shell: bash
         run: |
-          node --test --experimental-test-coverage --test-reporter=spec "test/*.test.js" | tee coverage.txt
+          # Floor: lib/ line coverage was about 60% at v0.6.0 and is 80% now; below 75% fails.
+          node --test --experimental-test-coverage --test-coverage-include="lib/**" --test-coverage-lines=75 --test-reporter=spec "test/*.test.js" | tee coverage.txt
           { echo '### Unit test coverage'; echo '```'
             sed -n '/start of coverage report/,/end of coverage report/p' coverage.txt
             echo '```'; } >> "$GITHUB_STEP_SUMMARY"
