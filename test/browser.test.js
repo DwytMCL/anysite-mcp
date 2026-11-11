@@ -1,6 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { chromeCandidates, launchArgs } from '../lib/browser.js';
+import { checkPack, chromeCandidates, launchArgs, PACK_API } from '../lib/browser.js';
+import { readdirSync } from 'node:fs';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { z } from 'zod';
 
 const none = () => [];
 
@@ -61,4 +64,35 @@ test('launchArgs: own profile, and the field-trial testing config off so Chromiu
   assert.equal(args[0], '--user-data-dir=/data/profiles/shop');
   assert(args.includes('--disable-field-trial-config'));
   assert.equal(args.at(-1), 'https://shop.test/');
+});
+
+test('checkPack: no version means 1, and version 1 is accepted', () => {
+  assert.equal(PACK_API, 1);
+  const bare = { url: 'https://x.test/' };
+  assert.equal(checkPack(bare, 'x.js'), bare);
+  assert.equal(checkPack({ version: 1 }, 'x.js').version, 1);
+});
+
+test('checkPack: a later version is refused with the file named and an update hint', () => {
+  assert.throws(() => checkPack({ version: 2 }, 'x.js'), /x\.js is pack API version 2, written for a newer anysite-mcp.*Update/);
+});
+
+test('checkPack: a bad version or a non-object is refused', () => {
+  for (const p of [{ version: 0 }, { version: '1' }, { version: 1.5 }, null])
+    assert.throws(() => checkPack(p, 'x.js'), /x\.js must return an object/);
+});
+
+test('the built-in packs declare version 1 and only the documented tool fields', async () => {
+  const dir = fileURLToPath(new URL('../sites/', import.meta.url));
+  const kit = new Proxy({}, { get: () => () => {} });
+  for (const f of readdirSync(dir).filter(f => f.endsWith('.js'))) {
+    const pack = checkPack((await import(pathToFileURL(dir + f).href)).default({ z, kit }), f);
+    assert.equal(pack.version, 1, f);
+    assert.match(pack.url, /^https:/, f);
+    for (const [n, t] of Object.entries(pack.tools)) {
+      assert.equal(typeof t.run, 'function', `${f} ${n}`);
+      assert.equal(typeof t.description, 'string', `${f} ${n}`);
+      for (const k of Object.keys(t)) assert(['description', 'input', 'run', 'readOnly', 'writes'].includes(k), `${f} ${n}: ${k}`);
+    }
+  }
 });

@@ -56,6 +56,7 @@ export default ({ z, kit }) => {
   }
 
   return {
+    version: 1,
     url: HOME_URL,
     tools: {
       list_chats: {

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Packs can declare `version` (none means 1). A pack written for a newer pack API is refused with a message naming the file,
+  instead of failing in odd ways. The built-in packs say `version: 1`.
 - A command that fails (a profile that will not open, a bad settings file) now prints one message and exits 1 instead of a stack trace.
 - A saved-shortcuts file that is not valid JSON now says which file and what is wrong.
 - Shortcut files are now versioned: `sites/<site>.json` is written as `{ "version": 1, "shortcuts": { ... } }`. Old files
