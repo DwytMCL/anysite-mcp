@@ -80,6 +80,13 @@ and reuses the open PR. That branch belongs to the bot, so commits you push to i
 re-run. If a Release step fails, fix it on `main` and run Actions → Release → Run workflow with the tag; steps already
 done (npm, the GitHub release, the registry listing) are skipped. Tags from before v0.5.0 can't be re-run this way.
 
+**Manual checks.** CI can't sign in to Google, so before the final bump run
+[`docs/release-checklist.md`](docs/release-checklist.md) against each RC from npm `next`, and paste the results table
+into the release PR.
+
+Who can publish, and how to recover from a bad release or a lost account, is in
+[`docs/maintainers.md`](docs/maintainers.md).
+
 ## Code style
 
 Plain modern JavaScript (ES modules, Node 22+), no build step, no new dependencies unless there's no other way.
