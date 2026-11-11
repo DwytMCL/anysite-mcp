@@ -27,6 +27,7 @@ high or critical advisory in a runtime dependency).
 - `lib/browser.js`: finding and starting Chrome, sites and packs. `lib/snapshot.js`: snapshots and finding elements.
 - `lib/guard.js` and `lib/permissions.js`: per-site permissions. `lib/shortcuts.js`, `lib/heal.js`,
   `lib/recording.js` and `lib/recorder.js`: shortcuts, self-repair and record mode.
+- [`CONTEXT.md`](CONTEXT.md): the project's terms. [`docs/adr/`](docs/adr/): why the big decisions were made.
 
 ## Share a shortcut
 

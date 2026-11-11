@@ -12,4 +12,10 @@ if (problem) {
   console.error(problem);
   process.exit(1);
 }
-await import('./lib/cli.js');
+// One place for failures in any command, so users see a message rather than a stack trace.
+try {
+  await import('./lib/cli.js');
+} catch (e) {
+  console.error(`anysite-mcp: ${e.message}`);
+  process.exit(1);
+}
