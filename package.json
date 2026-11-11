@@ -1,6 +1,6 @@
 {
   "name": "anysite-mcp",
-  "version": "0.7.0-rc.0",
+  "version": "0.7.0",
   "description": "Your AI agent learns a website once and keeps it as a tool: a real Chrome signed in as you, one profile per site, self-repairing shortcuts, record mode and per-site permissions. For Claude, Cursor and any MCP client",
   "mcpName": "io.github.DwytMCL/anysite-mcp",
   "main": "server.js",

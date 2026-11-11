@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.0
 
 - New `anysite-mcp library check` compares your saved shortcuts with the library's and says which ones differ. It changes nothing.
 - `add` and `library` now read the library's versioned files (`v1/`) and fall back to the original ones, so they keep working against

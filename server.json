@@ -7,12 +7,12 @@
     "url": "https://github.com/DwytMCL/anysite-mcp",
     "source": "github"
   },
-  "version": "0.7.0-rc.0",
+  "version": "0.7.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "anysite-mcp",
-      "version": "0.7.0-rc.0",
+      "version": "0.7.0",
       "transport": {
         "type": "stdio"
       },
