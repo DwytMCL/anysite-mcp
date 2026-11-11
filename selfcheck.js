@@ -176,7 +176,7 @@ try {
     const out = await call('localhost_search', { query: 'limes' });
     assert.match(out, /^Results for limes/);
     assert.match(out, /Repaired step 2: textbox "Search products" is now textbox "Product search"; step 3: button "Go" is now link "Go"/);
-    const saved = JSON.parse(readFileSync(join(home, 'sites/localhost.json'), 'utf8')).search.steps;
+    const saved = JSON.parse(readFileSync(join(home, 'sites/localhost.json'), 'utf8')).shortcuts.search.steps;
     assert.equal(saved[2].role, 'link');
     assert.deepEqual(saved[2].fallbacks[0], { role: 'button', name: 'Go' });
     assert.equal(await call('localhost_search', { query: 'kiwis' }), 'Results for kiwis', 'no repair needed the second time');

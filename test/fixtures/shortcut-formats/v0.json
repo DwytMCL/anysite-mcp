@@ -1,0 +1,3 @@
+{
+  "find": { "description": "Find a page", "params": { "q": "Query" }, "steps": [{ "action": "open", "url": "/?q={{q}}" }, { "action": "read" }] }
+}

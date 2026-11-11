@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Weekly health check of the Shortcut Library: runs `doctor` on every shortcut in library/<site>.json against the
 // live site, in a throwaway ANYSITE_HOME, and writes health.json for the Pages site and `anysite-mcp library`.
-// It checks without signing in, so shortcuts that need sign-in can't pass here; they don't belong in library/.
+// It checks without signing in, so a shortcut marked "needsSignIn": true is recorded as unchecked, not broken.
 // A broken shortcut or a site that won't load is recorded as broken and the script still exits 0 (it's a monitor,
 // not a gate). It fails only when it can't run at all: no Chrome, or no library files.
 // Usage: node scripts/library-health.js <library folder> <output file>
@@ -15,9 +15,12 @@ import { stepsHash } from '../lib/library.js';
 export const fileHashes = data => Object.fromEntries(Object.entries(data).map(([n, sc]) => [n, stepsHash(sc?.steps)]));
 
 // Entries for health.json: doctor's result for each shortcut, or the site's error for all of them.
-export function healthEntries(site, hashes, results = [], error) {
+export const signInNames = data => Object.entries(data).filter(([, sc]) => sc?.needsSignIn === true).map(([n]) => n);
+
+export function healthEntries(site, hashes, results = [], error, signIn = []) {
   const byName = new Map(results.map(r => [r.name, r]));
   return Object.fromEntries(Object.keys(hashes).map(n => {
+    if (signIn.includes(n)) return [`${site}/${n}`, { status: 'unchecked', detail: 'Needs sign-in; not checked.', steps: hashes[n] }];
     const r = error ? { status: 'broken', detail: error } : byName.get(n) || { status: 'broken', detail: 'Not checked: doctor did not report it.' };
     return [`${site}/${n}`, { status: r.status, detail: r.detail || '', steps: hashes[n] }];
   }));
@@ -36,16 +39,18 @@ async function main(libDir, outFile) {
   const shortcuts = {};
   for (const f of files) {
     const name = f.slice(0, -5), file = join(libDir, f);
-    let hashes = {};
+    let hashes = {}, signIn = [];
     try {
-      hashes = fileHashes(JSON.parse(readFileSync(file, 'utf8')));
+      const data = JSON.parse(readFileSync(file, 'utf8'));
+      hashes = fileHashes(data);
+      signIn = signInNames(data);
       const site = await loadSite(name);
       await addShortcuts(site, { from: file, only: undefined, force: true });
       const { results } = await doctor(site);
-      Object.assign(shortcuts, healthEntries(name, hashes, results));
+      Object.assign(shortcuts, healthEntries(name, hashes, results, undefined, signIn));
       await site.browser?.newBrowserCDPSession().then(s => s.send('Browser.close')).catch(() => {});
     } catch (e) {
-      Object.assign(shortcuts, healthEntries(name, hashes, [], e.message));
+      Object.assign(shortcuts, healthEntries(name, hashes, [], e.message, signIn));
     }
     for (const n of Object.keys(hashes)) console.log(`${shortcuts[`${name}/${n}`].status.padEnd(8)} ${name}/${n}`);
   }

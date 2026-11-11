@@ -241,7 +241,8 @@ filled in from the tool's arguments, and the shortcut returns the text of its `r
   wrong thing.
 - Before saving, the steps are run once with `test_args` (set `verify: false` for steps that must not happen
   twice, like sending).
-- Shortcuts are saved in `~/.anysite-mcp/sites/<site>.json`, which you can edit, share or commit.
+- Shortcuts are saved in `~/.anysite-mcp/sites/<site>.json`, which you can edit, share or commit. The file is versioned
+  (`"version": 1`); an older file is kept as `<site>.v0.bak` the first time it is saved.
 
 ```json
 {

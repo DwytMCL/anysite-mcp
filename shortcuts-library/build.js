@@ -18,6 +18,7 @@ export const indexEntries = (site, data) => Object.entries(data).map(([name, sc]
   description: sc.description,
   params: sc.params || {},
   steps: sc.steps || [],
+  ...(sc.needsSignIn ? { needsSignIn: true } : {}),
   stepsHash: stepsHash(sc.steps)
 }));
 
@@ -34,6 +35,8 @@ export function build({ libDir = join(root, 'library'), out = join(root, '_site'
   rmSync(out, { recursive: true, force: true });
   mkdirSync(join(out, 'library'), { recursive: true });
   for (const f of ['index.html', 'style.css', 'app.js']) copyFileSync(join(here, f), join(out, f));
+  mkdirSync(join(out, 'schema'), { recursive: true });
+  copyFileSync(join(root, 'schema', 'shortcuts.v1.json'), join(out, 'schema', 'shortcuts.v1.json'));
 
   const shortcuts = [];
   const files = readdirSync(libDir).filter(f => f.endsWith('.json') && !['index.json', 'health.json'].includes(f)).sort();

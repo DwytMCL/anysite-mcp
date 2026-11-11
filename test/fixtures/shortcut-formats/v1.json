@@ -1,0 +1,7 @@
+{
+  "$schema": "https://dwytmcl.github.io/anysite-mcp/schema/shortcuts.v1.json",
+  "version": 1,
+  "shortcuts": {
+    "find": { "description": "Find a page", "params": { "q": { "description": "Query", "example": "kiwi" } }, "steps": [{ "action": "open", "url": "/?q={{q}}" }, { "action": "read" }] }
+  }
+}

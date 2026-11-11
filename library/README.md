@@ -34,7 +34,8 @@ never clicking or typing) and publishes the result. The site and `anysite-mcp li
 | – not checked yet | Not checked since it was added or its steps last changed |
 | ? not recently checked | The last check is more than 14 days old, so its result isn't shown |
 
-The check can't sign in, so **only shortcuts that work without signing in belong here.**
+The check can't sign in. A shortcut that only works signed in must say `"needsSignIn": true`: it stays in the library, shows
+as "needs sign-in" and is never marked broken. Give params an `example` (a value that works) so the check can try them.
 
 To try a library change before it's deployed, build the site and point the CLI at it:
 
