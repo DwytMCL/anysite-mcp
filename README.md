@@ -398,6 +398,8 @@ npx -y anysite-mcp permissions github.com                      # show the curren
 > "Go", can get past them, so still only sign in where you're happy for the agent to act. Settings live in
 > `~/.anysite-mcp/settings.json`. Profiles hold your cookies: never share or commit `~/.anysite-mcp/profiles`.
 
+**Security:** to report a vulnerability, see [SECURITY.md](SECURITY.md). Please don't open a public issue.
+
 ## FAQ
 
 <details>
