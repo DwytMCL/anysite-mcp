@@ -305,6 +305,7 @@ npx -y anysite-mcp add github.com                    # install a site's shared s
 npx -y anysite-mcp library search wikipedia          # matches, with their health and add command
 npx -y anysite-mcp library list github.com           # every site, or one site's shortcuts
 npx -y anysite-mcp library info en.wikipedia.org/summary
+npx -y anysite-mcp library check                    # which of your shortcuts differ from the library's
 ```
 
 **Health checked every week.** A scheduled job runs every library shortcut against the live site, and each one

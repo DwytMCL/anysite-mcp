@@ -34,7 +34,7 @@ test('--help and -h list every command and flag', () => {
     const { code, out } = run(f);
     assert.equal(code, 0);
     for (const w of ['login <site>', 'record <site> <name>', 'add <site>', '--from', '--force', 'library search', 'library list',
-      'library info', 'doctor', 'permissions <site>', '--read-only', '--read-write', '--confirm', '--no-confirm', '--allow <domain',
+      'library info', 'library check', 'doctor', 'permissions <site>', '--read-only', '--read-write', '--confirm', '--no-confirm', '--allow <domain',
       '--allow-any', '--allow-default', '--version', 'ANYSITE_HOME', 'ANYSITE_CHROME', 'ANYSITE_CHROME_ARGS', 'ANYSITE_HEADLESS',
       'ANYSITE_DOWNLOADS', 'ANYSITE_LIBRARY']) assert.ok(out.includes(w), `help mentions ${w}`);
   }
@@ -88,4 +88,20 @@ test('permissions shows, sets and clears each setting, and writes settings.json'
   assert.match(run('permissions', 'example.com', '--read-write', '--no-confirm', '--allow-default').out,
     /read and write; does not ask before acting; may open example\.com \(default\)/);
   assert.equal(JSON.parse(readFileSync(join(home, 'settings.json'), 'utf8')).sites?.['example.com'], undefined);
+});
+
+test('library check compares saved shortcuts with the library and changes nothing', () => {
+  const h = mkdtempSync(join(tmpdir(), 'anysite-check-'));
+  mkdirSync(join(h, 'sites'));
+  const file = join(h, 'sites', 'example.com.json');
+  const old = JSON.stringify({ find: { description: 'Find a page', steps: [{ action: 'read' }] } });
+  writeFileSync(file, old);
+  writeFileSync(join(h, 'sites', 'future.com.json'), JSON.stringify({ version: 9, shortcuts: {} }));
+  const env = { ...process.env, ANYSITE_HOME: h, ANYSITE_LIBRARY: lib };
+  const r = spawnSync(process.execPath, [server, 'library', 'check'], { encoding: 'utf8', timeout: 30000, env });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /find: differs from the library/);
+  assert.match(r.stdout, /1 differ, 1 not compared/);
+  assert.equal(readFileSync(file, 'utf8'), old);
+  rmSync(h, { recursive: true, force: true });
 });

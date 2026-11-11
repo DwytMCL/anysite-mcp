@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { extractMarked, fetchLibrary, formatInfo, formatList, healthFor, searchShortcuts, stepsHash } from '../lib/library.js';
+import { checkInstalled, extractMarked, fetchLibrary, formatCheck, formatInfo, formatList, healthFor, searchShortcuts, stepsHash } from '../lib/library.js';
 
 const steps = [{ action: 'open', url: '/?q={{q}}' }, { action: 'extract', role: 'listitem', fields: { a: { role: 'link', attr: 'href' } } }];
 const sc = (site, name, description, s = steps) =>
@@ -90,4 +90,24 @@ test('fetchLibrary: a local folder, a missing health file, a missing index', asy
 test('healthFor in shortcuts-library/app.js is the same as in lib/library.js', () => {
   const read = p => readFileSync(new URL(p, import.meta.url), 'utf8');
   assert.equal(extractMarked(read('../shortcuts-library/app.js')), extractMarked(read('../lib/library.js')));
+});
+
+test('checkInstalled: same, differs, newer format, and shortcuts that are only local are ignored', () => {
+  const rows = checkInstalled(index, [
+    { site: 'github.com', shortcuts: { trending: { steps }, notifications: { steps: [{ action: 'read' }] }, mine: { steps } } },
+    { site: 'future.com', error: 'x.json is shortcut format version 2, written for a newer anysite-mcp than this one' },
+    { site: 'other.com', error: 'x.json is not valid JSON' },
+    { site: 'example.com', error: 'x.json is not valid JSON' }]);
+  assert.deepEqual(rows.map(r => `${r.site}/${r.name || ''}:${r.status}`), [
+    'github.com/trending:current', 'github.com/notifications:outdated', 'future.com/:newer-format', 'example.com/:unreadable']);
+  const text = formatCheck(rows);
+  assert.match(text, /notifications: differs from the library.*add github\.com\/notifications --force/);
+  assert.match(text, /trending: same as the library/);
+  assert.match(text, /written for a newer anysite-mcp/);
+  assert.match(text, /1 same, 1 differ, 2 not compared\./);
+  assert.doesNotMatch(text, /mine/);
+});
+
+test('formatCheck: nothing shared says so', () => {
+  assert.match(formatCheck(checkInstalled(index, [{ site: 'x.com', shortcuts: { a: { steps } } }])), /nothing to compare/);
 });

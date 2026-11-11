@@ -25,7 +25,7 @@ Tool descriptions are not part of the contract; the wording may improve.
 
 Commands and flags: `anysite-mcp [site ...]`, `login <site>`, `record <site> <name>`,
 `add <site>[/<name>] [--from <file or URL>] [--force]`, `library search <words>`, `library list [site]`,
-`library info <site>[/<name>]`, `doctor [site ...]`,
+`library info <site>[/<name>]`, `library check`, `doctor [site ...]`,
 `permissions <site> [--read-only | --read-write] [--confirm | --no-confirm] [--allow <domain,...> | --allow-any | --allow-default]`,
 `--version`, `--help`. The exit code is 0 on success and 1 on an error. The wording of messages is not part of the
 contract.

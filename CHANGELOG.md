@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- New `anysite-mcp library check` compares your saved shortcuts with the library's and says which ones differ. It changes nothing.
 - `add` and `library` now read the library's versioned files (`v1/`) and fall back to the original ones, so they keep working against
   a library that has not been updated. The original library URLs are unchanged, so older versions keep working too.
 - Packs can declare `version` (none means 1). A pack written for a newer pack API is refused with a message naming the file,
