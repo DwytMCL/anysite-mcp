@@ -65,7 +65,10 @@ refused with a clear message and a newer anysite-mcp reads every older pack vers
 ## The shortcuts library
 
 Published at `dwytmcl.github.io/anysite-mcp/library`: `index.json` and `<site>.json` stay at their current URLs and
-stay readable by every released CLI. New formats are published beside them under `v1/`, never in their place.
+stay readable by every released CLI. New formats are published beside them under `v1/`, never in their place:
+`v1/index.json` and `v1/<site>.json` (the version 1 envelope of the shortcut file format). A CLI reads `v1/index.json`
+first and falls back to `index.json` when there is none; `add` reads `v1/<site>.json` and falls back to the raw file
+in the repository. CI runs the published 0.6.0 CLI against every build (`npm run test:library`) to keep this true.
 
 ## Accepted Inspector warnings
 
