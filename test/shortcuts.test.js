@@ -1,11 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 process.env.ANYSITE_HOME = mkdtempSync(join(tmpdir(), 'anysite-sc-'));
-const { checkShortcut, doctorArgs, fillFrom, paramSpec, shortcutAnnotations } = await import('../lib/shortcuts.js');
+const { checkShortcut, doctorArgs, fillFrom, paramSpec, readShortcuts, shortcutAnnotations } = await import('../lib/shortcuts.js');
 
 test('checkShortcut: accepts a good shortcut', () => {
   assert.doesNotThrow(() => checkShortcut({ params: { q: 'Query' }, steps: [
@@ -57,4 +59,21 @@ test('shortcutAnnotations: read-only if every step only looks, destructive if on
     { readOnlyHint: false, destructiveHint: false });
   assert.deepEqual(shortcutAnnotations({ steps: [{ action: 'download' }, { action: 'click' }] }),
     { readOnlyHint: false, destructiveHint: true });
+});
+
+test('readShortcuts: a corrupt file is named in the error', () => {
+  const shortcutFile = join(process.env.ANYSITE_HOME, 'broken.json');
+  writeFileSync(shortcutFile, '{ not json');
+  assert.throws(() => readShortcuts({ shortcutFile }), err => err instanceof Error && err.message.includes(shortcutFile) && /not valid JSON/.test(err.message));
+  assert.deepEqual(readShortcuts({ shortcutFile: join(process.env.ANYSITE_HOME, 'missing.json') }), {});
+});
+
+test('cli: a failing command prints a message, not a stack trace', () => {
+  const home = mkdtempSync(join(tmpdir(), 'anysite-cli-'));
+  writeFileSync(join(home, 'settings.json'), '{ not json');
+  const r = spawnSync(process.execPath, [fileURLToPath(new URL('../server.js', import.meta.url)), 'permissions', 'example.com', '--read-only'],
+    { env: { ...process.env, ANYSITE_HOME: home }, encoding: 'utf8' });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /not valid JSON/);
+  assert.doesNotMatch(r.stderr, /\n\s+at \S/);
 });

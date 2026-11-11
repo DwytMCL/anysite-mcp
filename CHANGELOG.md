@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- A command that fails (a profile that will not open, a bad settings file) now prints one message and exits 1 instead of a stack trace.
+- A saved-shortcuts file that is not valid JSON now says which file and what is wrong.
+
 ## 0.6.0
 
 - CI checks the server with a second MCP client, the MCP Inspector CLI (`npm run test:inspector`): the
