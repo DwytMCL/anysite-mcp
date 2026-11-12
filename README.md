@@ -34,6 +34,7 @@ claude mcp add anysite -- npx -y anysite-mcp
 [Shortcut Library](#the-shortcut-library) &nbsp;&middot;&nbsp;
 [Packs](#write-a-pack) &nbsp;&middot;&nbsp;
 [Safety](#permissions-and-safety) &nbsp;&middot;&nbsp;
+[Docs](#documentation) &nbsp;&middot;&nbsp;
 [FAQ](#faq)
 
 </div>
@@ -258,7 +259,15 @@ filled in from the tool's arguments, and the shortcut returns the text of its `r
 }
 ```
 
-Params can also be `{ "description", "type": "number" | "boolean", "optional", "default" }`.
+A param is either a description string or an object:
+
+```json
+{ "description": "How many results", "type": "number", "optional": true, "default": 5, "example": 10 }
+```
+
+`type` is `"number"` or `"boolean"` (text if left out). `example` is a sample value that only `doctor` uses.
+A shortcut that needs you to be signed in can say `"needsSignIn": true`, so the library's weekly check leaves it unchecked
+instead of marking it broken.
 
 ### When a site changes
 
@@ -289,10 +298,10 @@ npx -y anysite-mcp doctor
 `doctor` follows each shortcut while its steps only open and read pages, checks that the element of the first
 step that would act is there, and repairs what it can. It never clicks or types.
 
-Each parameter gets its `default` if it has one. Otherwise an optional parameter is left empty, so the check sees
-the page the way a plain call would, and a required one gets `"test"`. If an optional parameter breaks the page when
-it's empty (say, an empty search in the page address), give it a `default`. Note that this also changes what users
-get when they leave it out.
+Each parameter gets its `example` if it has one, then its `default`. Otherwise an optional parameter is left empty, so
+the check sees the page the way a plain call would, and a required one gets `"test"`. If an optional parameter breaks
+the page when it's empty (say, an empty search in the page address), give it an `example`. A `default` works too, but
+it also changes what users get when they leave the parameter out.
 
 ## The Shortcut Library
 
@@ -305,7 +314,7 @@ npx -y anysite-mcp add github.com                    # install a site's shared s
 npx -y anysite-mcp library search wikipedia          # matches, with their health and add command
 npx -y anysite-mcp library list github.com           # every site, or one site's shortcuts
 npx -y anysite-mcp library info en.wikipedia.org/summary
-npx -y anysite-mcp library check                    # which of your shortcuts differ from the library's
+npx -y anysite-mcp library check                     # which of your shortcuts differ from the library's (changes nothing)
 ```
 
 **Health checked every week.** A scheduled job runs every library shortcut against the live site, and each one
@@ -350,6 +359,9 @@ clients see it as destructive. Mark it `readOnly: true` if it only reads, as `to
 For a tool that takes a while, `run` gets a fourth argument, `{ progress }`. Call `progress(done, total, message)`
 now and then, e.g. `progress(30, 300, 'Waiting for the reply (30 s)')`. Clients that show progress get it, and for
 the rest it does nothing.
+
+A pack can say `version: 1` (the pack API version; no version means 1), and a pack written for a newer one is refused
+with a message naming the file. Everything a pack can use is in [docs/pack-api.md](docs/pack-api.md).
 
 Then run `npx -y anysite-mcp login hn` (or just use `site: "hn"`), and the agent gets `hn_top`. A pack in
 `~/.anysite-mcp/sites` with the same name as a bundled one replaces it. **Pull requests with new packs are
@@ -401,6 +413,16 @@ npx -y anysite-mcp permissions github.com                      # show the curren
 > `~/.anysite-mcp/settings.json`. Profiles hold your cookies: never share or commit `~/.anysite-mcp/profiles`.
 
 **Security:** to report a vulnerability, see [SECURITY.md](SECURITY.md). Please don't open a public issue.
+
+## Documentation
+
+| | |
+|---|---|
+| [Stability](docs/stability.md) | What 1.0 keeps stable: tools, CLI, settings, file formats, the library's files |
+| [Pack API](docs/pack-api.md) | Everything a pack can use, and how pack versions work |
+| [Threat model](docs/threat-model.md) | What a malicious page can try, and what the permissions do about it |
+| [Contributing](CONTRIBUTING.md) | Setting up, tests, packs and releases |
+| [Changelog](CHANGELOG.md) | What changed in each version |
 
 ## FAQ
 
