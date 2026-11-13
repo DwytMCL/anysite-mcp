@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- When Chrome fails to start, the error now says why (its own message, or an exit code) instead of waiting 20 seconds and saying only "Could not start Chrome". A missing sandbox gets a short explanation with the fix (the AppArmor setting, or `ANYSITE_CHROME_ARGS=--no-sandbox` as root).
+
 ## 0.7.0
 
 - New `anysite-mcp library check` compares your saved shortcuts with the library's and says which ones differ. It changes nothing.
