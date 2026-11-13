@@ -384,6 +384,7 @@ welcome.**
 |---|---|
 | `ANYSITE_HOME` | Where profiles and shortcuts live (default `~/.anysite-mcp`) |
 | `ANYSITE_CHROME` | Path to the Chrome or Chromium binary |
+| `ANYSITE_PROTOCOL=2026-07-28` | Experimental. Also accept clients that speak MCP revision 2026-07-28 (2025-11-25 is always accepted). Such a client gets list-change notifications only if it subscribes, and in a site's `confirm` mode actions are refused, not asked about, because the question is not yet supported on that revision. |
 | `ANYSITE_TOOL_TIMEOUT` | Seconds a tool call may run before it returns an error (default 180, `0` for no limit) |
 | `ANYSITE_HEADLESS=1` | Run the automated Chrome without a window; it is closed when the server exits. Sign-in always opens a window. |
 | `ANYSITE_CHROME_ARGS` | Extra Chrome flags, e.g. `--no-sandbox` when running as root in a container |

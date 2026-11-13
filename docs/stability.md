@@ -5,7 +5,8 @@ existing users (a new tool, a new optional argument, a new optional field). Anyt
 may change in any release.
 
 **Protocol.** 1.0 supports MCP protocol revision 2025-11-25. A newer revision is added alongside it; dropping
-2025-11-25 is a major change.
+2025-11-25 is a major change. Revision 2026-07-28 is an experimental opt-in (`ANYSITE_PROTOCOL=2026-07-28`, not part of
+the contract yet): a site in `confirm` mode refuses actions on it instead of asking, and it is not declared in `server.json`.
 
 ## MCP tools
 

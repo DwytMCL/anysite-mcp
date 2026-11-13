@@ -32,7 +32,8 @@ mkdirSync(join(home, 'sites'));
 writeFileSync(join(home, 'sites', 'example.com.json'), JSON.stringify({
   find: { description: 'Find a page', params: { q: 'Query' }, steps: [{ action: 'open', url: '/?q={{q}}' }, { action: 'read' }] } }));
 // The Inspector doesn't pass its own environment on to the server, so give the server what it needs with -e.
-const env = { ANYSITE_HOME: home, ANYSITE_CHROME: process.env.ANYSITE_CHROME, ANYSITE_CHROME_ARGS: process.env.ANYSITE_CHROME_ARGS };
+const env = { ANYSITE_HOME: home, ANYSITE_CHROME: process.env.ANYSITE_CHROME, ANYSITE_CHROME_ARGS: process.env.ANYSITE_CHROME_ARGS,
+  ANYSITE_PROTOCOL: process.env.ANYSITE_PROTOCOL };
 const envArgs = Object.entries(env).filter(([, v]) => v).flatMap(([k, v]) => ['-e', `${k}=${v}`]);
 
 async function inspect(...args) {
