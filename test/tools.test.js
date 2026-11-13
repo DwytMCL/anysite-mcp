@@ -159,3 +159,10 @@ test('pack tools get progress(done, total, message), sent only when the client a
   assert.deepEqual(updates, [{ progress: 1, total: 2, message: 'half' }, { progress: 2, total: 2, message: 'done' }]);
   assert.ok(!(await client.callTool({ name: 'slowpack_run', arguments: {} })).isError, 'no progressToken: no updates, no error');
 });
+
+test('withTimeout: a call that hangs returns an error naming the tool; a quick one passes through', async () => {
+  const { withTimeout } = await import('../lib/tools.js');
+  await assert.rejects(withTimeout(20, 'web_open', new Promise(() => {})), /web_open did not finish within 0\.02 s/);
+  assert.equal(await withTimeout(1000, 'x', Promise.resolve(5)), 5);
+  assert.equal(await withTimeout(0, 'x', Promise.resolve(6)), 6);
+});

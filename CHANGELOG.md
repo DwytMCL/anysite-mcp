@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- A Chrome that crashes or is closed is now noticed straight away, and the next call starts a fresh one instead of failing on a dead page.
+- A tool call that runs for more than 180 seconds now returns an error instead of leaving the agent waiting. Change it with `ANYSITE_TOOL_TIMEOUT` (seconds, `0` for no limit).
+
 ## 0.7.0
 
 - New `anysite-mcp library check` compares your saved shortcuts with the library's and says which ones differ. It changes nothing.
