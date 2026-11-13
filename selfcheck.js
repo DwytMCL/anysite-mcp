@@ -202,6 +202,9 @@ try {
 
   await step('doctor checks shortcuts without acting', async () => {
     assert.match(await cli('doctor', site), /✓ localhost_search \(checked steps 1–2/);
+    const report = JSON.parse(await cli('doctor', site, '--json'));
+    assert.equal(report.checked, report.sites[0].shortcuts.length);
+    assert.equal(report.sites[0].shortcuts.find(s => s.name === 'search')?.status, 'ok');
   });
 
   await step('permissions', async () => {

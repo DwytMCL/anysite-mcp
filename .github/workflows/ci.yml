@@ -108,6 +108,34 @@ jobs:
         env:
           ANYSITE_CHROME: ${{ steps.chrome.outputs.chrome-path }}
 
+  # The README says anysite-mcp works in a container as root with ANYSITE_CHROME_ARGS=--no-sandbox. This runs the
+  # self-check that way: a Linux container, root, Debian's Chromium, and only --no-sandbox. Not a required check, and
+  # continue-on-error so a failure here shows up without stopping a release, which re-runs all of CI. Once it has been
+  # green for a while, drop continue-on-error and add it to the required checks.
+  docker:
+    needs: lint
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    container:
+      image: node:24-bookworm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+      - name: Install Chromium
+        run: apt-get update && apt-get install -y --no-install-recommends chromium
+      - run: npm ci
+      - name: Show the user and Chromium
+        run: |
+          echo "user id: $(id -u)"
+          chromium --version
+      - name: Self-check as root with --no-sandbox
+        run: npm run test:e2e
+        timeout-minutes: 5
+        env:
+          ANYSITE_CHROME: /usr/bin/chromium
+          ANYSITE_CHROME_ARGS: --no-sandbox
+
   # A second MCP client, the MCP Inspector CLI (pinned in the script): the handshake, tool schemas with --strict, and
   # a tool call. The contract only, not the self-check: the Inspector starts a fresh server for every command. Node 24,
   # because the Inspector needs ^24.22.1.

@@ -295,6 +295,8 @@ parameter, with what you typed as its default. The agent can do the same with `w
 npx -y anysite-mcp doctor
 ```
 
+Add `--json` to get the results as JSON for a script: `{ "checked": 2, "sites": [{ "site": "github.com", "shortcuts": [{ "name": "trending", "status": "ok", "detail": "" }] }] }`. `status` is `ok`, `repaired` or `broken`, and `checked` is the number of shortcuts checked. The exit code is 1 if any is broken.
+
 `doctor` follows each shortcut while its steps only open and read pages, checks that the element of the first
 step that would act is there, and repairs what it can. It never clicks or types.
 

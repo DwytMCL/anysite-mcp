@@ -1,0 +1,93 @@
+name: Nightly live-site check
+
+# Early warning for site changes: every night, check each Shortcut Library shortcut against the live site. One issue is
+# opened after two broken nights in a row. It never gates anything. See "The nightly live-site check" in CONTRIBUTING.md.
+on:
+  schedule:
+    - cron: '23 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
+jobs:
+  check:
+    if: github.repository == 'DwytMCL/anysite-mcp'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Install Chrome
+        id: chrome
+        uses: browser-actions/setup-chrome@48ad923757ca74d66703209fe939badbdf80f2f4 # v2.2.0
+        with:
+          chrome-version: stable
+          install-chromedriver: false
+      - name: Allow Chrome's sandbox
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      # Sites are checked one after another, which keeps the load low and the runner less likely to be blocked.
+      - name: Check shortcuts against the live sites
+        env:
+          ANYSITE_CHROME: ${{ steps.chrome.outputs.chrome-path }}
+          ANYSITE_HEADLESS: "1"
+        run: node scripts/library-health.js library "$RUNNER_TEMP/health.json"
+      # The history is the artifact of the last successful night; the first night starts a new one.
+      - name: Add tonight to the history
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          previous=-
+          run=$(gh run list --workflow nightly.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+          if [ -n "$run" ] && gh run download "$run" --name health-history --dir "$RUNNER_TEMP/previous"; then
+            previous="$RUNNER_TEMP/previous/history.json"
+          fi
+          node scripts/nightly.js history "$previous" "$RUNNER_TEMP/health.json" "$RUNNER_TEMP/history.json"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: health-history
+          path: ${{ runner.temp }}/history.json
+          retention-days: 90
+
+  # Only this job can write issues.
+  report:
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - name: Open, update or close the issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download "$GITHUB_RUN_ID" --name health-history --dir "$RUNNER_TEMP/history"
+          gh label create nightly-health --color B60205 --description "Nightly live-site check" 2>/dev/null || true
+          number=$(gh issue list --label nightly-health --state open --limit 1 --json number --jq '.[0].number // empty')
+          decision=$(node scripts/nightly.js decide "$RUNNER_TEMP/history/history.json" "${number:+open}")
+          action=$(jq -r .action <<<"$decision")
+          title=$(jq -r .title <<<"$decision")
+          jq -r .body <<<"$decision" > "$RUNNER_TEMP/body.md"
+          case "$action" in
+            open) gh issue create --title "$title" --label nightly-health --body-file "$RUNNER_TEMP/body.md" ;;
+            comment) gh issue comment "$number" --body-file "$RUNNER_TEMP/body.md" ;;
+            close) gh issue comment "$number" --body-file "$RUNNER_TEMP/body.md" && gh issue close "$number" ;;
+            *) echo "Nothing to report." ;;
+          esac
