@@ -3,6 +3,8 @@
 ## Unreleased
 
 - When Chrome fails to start, the error now says why (its own message, or an exit code) instead of waiting 20 seconds and saying only "Could not start Chrome". A missing sandbox gets a short explanation with the fix (the AppArmor setting, or `ANYSITE_CHROME_ARGS=--no-sandbox` as root).
+- A Chrome that crashes or is closed is now noticed straight away, and the next call starts a fresh one instead of failing on a dead page.
+- A tool call that runs for more than 180 seconds now returns an error instead of leaving the agent waiting. Change it with `ANYSITE_TOOL_TIMEOUT` (seconds, `0` for no limit).
 
 ## 0.7.0
 
