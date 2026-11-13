@@ -96,3 +96,16 @@ test('the built-in packs declare version 1 and only the documented tool fields',
     }
   }
 });
+
+test('explainChromeExit: sandbox failures name the fix', async () => {
+  const { explainChromeExit } = await import('../lib/browser.js');
+  const m = explainChromeExit('No usable sandbox! Update your kernel', { code: 1 }, 'x.com');
+  assert.match(m, /--no-sandbox/);
+  assert.match(m, /apparmor/i);
+});
+
+test('explainChromeExit: other failures show the exit code and Chrome\'s last lines', async () => {
+  const { explainChromeExit } = await import('../lib/browser.js');
+  assert.match(explainChromeExit('boom\nbad thing', { code: 3 }, 'x.com'), /code 3.*boom \| bad thing/);
+  assert.match(explainChromeExit('', { code: null, error: new Error('ENOENT') }, 'x.com'), /could not be run \(ENOENT\)/);
+});
