@@ -383,7 +383,7 @@ welcome.**
 | `ANYSITE_HOME` | Where profiles and shortcuts live (default `~/.anysite-mcp`) |
 | `ANYSITE_CHROME` | Path to the Chrome or Chromium binary |
 | `ANYSITE_TOOL_TIMEOUT` | Seconds a tool call may run before it returns an error (default 180, `0` for no limit) |
-| `ANYSITE_HEADLESS=1` | Run the automated Chrome without a window. Sign-in always opens a window. |
+| `ANYSITE_HEADLESS=1` | Run the automated Chrome without a window; it is closed when the server exits. Sign-in always opens a window. |
 | `ANYSITE_CHROME_ARGS` | Extra Chrome flags, e.g. `--no-sandbox` when running as root in a container |
 | `ANYSITE_DOWNLOADS` | Where downloads go (default `~/Downloads/anysite`) |
 | `ANYSITE_LIBRARY` | Where `library` reads the Shortcut Library from: a folder (e.g. `_site/library` after a local build) or a URL |

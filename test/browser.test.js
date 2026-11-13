@@ -109,3 +109,14 @@ test('explainChromeExit: other failures show the exit code and Chrome\'s last li
   assert.match(explainChromeExit('boom\nbad thing', { code: 3 }, 'x.com'), /code 3.*boom \| bad thing/);
   assert.match(explainChromeExit('', { code: null, error: new Error('ENOENT') }, 'x.com'), /could not be run \(ENOENT\)/);
 });
+
+test('closeStarted ends a tracked process and forgets it', async () => {
+  const { spawn } = await import('node:child_process');
+  const { closeStarted, trackStarted } = await import('../lib/browser.js');
+  const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore', detached: process.platform !== 'win32' });
+  const gone = new Promise(r => child.once('exit', r));
+  trackStarted(child.pid);
+  closeStarted();
+  await gone;
+  closeStarted();
+});
