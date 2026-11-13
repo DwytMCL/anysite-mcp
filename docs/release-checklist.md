@@ -33,6 +33,12 @@ candidate before the final bump, and paste the results table into the release PR
 12. With `npx -y anysite-mcp@next permissions gemini.google.com --read-only`, `gemini_ask` (a `writes: true` tool) is
     refused, and the message names the tool. Turn read-only off again afterwards.
 
+## Nightly check
+
+13. Actions → Nightly live-site check has a successful run in the last two days, and no `nightly-health` issue is open.
+    GitHub turns off scheduled workflows after 60 days without repository activity, so a quiet repository may need it
+    turned back on.
+
 ## Recording results
 
 Copy this into the release PR:
@@ -52,4 +58,5 @@ Copy this into the release PR:
 | 10 | Test notebook deleted | | | | |
 | 11 | web_login sign-in | | | | |
 | 12 | Read-only refuses gemini_ask | | | | |
+| 13 | Nightly check running, no open issue | | | | |
 ```
