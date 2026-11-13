@@ -137,6 +137,13 @@ jobs:
         timeout-minutes: 5
         env:
           ANYSITE_CHROME: ${{ steps.chrome.outputs.chrome-path }}
+      # The Inspector speaks 2025-11-25, so this checks that the opt-in leaves such a client working.
+      - name: Inspector check with ANYSITE_PROTOCOL=2026-07-28
+        run: npm run test:inspector
+        timeout-minutes: 5
+        env:
+          ANYSITE_CHROME: ${{ steps.chrome.outputs.chrome-path }}
+          ANYSITE_PROTOCOL: '2026-07-28'
 
   # The published 0.6.0 CLI must still read the built library (the original URLs stay as they are), and this CLI must
   # add every built file, v1 or not. Installs 0.6.0 from npm.

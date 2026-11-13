@@ -57,11 +57,15 @@ const settings = s => writeFileSync(join(home, 'settings.json'), JSON.stringify(
 
 /** @type {'accept' | 'decline' | 'cancel'} */
 let answer = 'accept';
-const c = new Client({ name: 'selfcheck', version: '0' }, { capabilities: { elicitation: {} } });
+// ANYSITE_PROTOCOL=2026-07-28 runs the whole check as a client that speaks that revision.
+const modern = process.env.ANYSITE_PROTOCOL === '2026-07-28';
+const c = new Client({ name: 'selfcheck', version: '0' }, { capabilities: { elicitation: {} },
+  ...(modern ? { versionNegotiation: { mode: { pin: '2026-07-28' } } } : {}) });
 c.setRequestHandler('elicitation/create', () => ({ action: answer }));
 let listChanged = 0;
 c.setNotificationHandler('notifications/tools/list_changed', () => { listChanged++; });
 await c.connect(new StdioClientTransport({ command: process.execPath, args: [serverJs, 'gemini', site], env }));
+assert.equal(c.getNegotiatedProtocolVersion(), modern ? '2026-07-28' : '2025-11-25');
 const raw = (name, args) => c.callTool({ name, arguments: args });
 const textOf = r => /** @type {{ text: string }} */ (r.content[0]).text;
 const call = async (name, args) => { const r = await raw(name, args); assert(!r.isError, textOf(r)); return textOf(r); };
@@ -71,6 +75,8 @@ const step = (name, fn) => fn().then(() => console.log(`ok  ${name}`));
 const announces = async (what, fn) => {
   const before = listChanged;
   const r = await fn();
+  // A 2026-07-28 client only gets list changes it subscribed to (subscriptions/listen), not unsolicited ones.
+  if (modern) return r;
   for (const end = Date.now() + 2000; listChanged === before && Date.now() < end;) await new Promise(res => setTimeout(res, 50));
   assert(listChanged > before, `${what} sends notifications/tools/list_changed`);
   return r;
@@ -204,10 +210,15 @@ try {
     await fails('web_click', { site, role: 'button', name: 'Send message' }, /read-only/);
     await call('web_type', { site, role: 'textbox', name: 'Product search', value: 'x', submit: true });
     settings({ confirm: true });
-    answer = 'decline';
-    await fails('web_click', { site, role: 'button', name: 'Send message' }, /said no/);
-    answer = 'accept';
-    assert.match(await call('web_click', { site, role: 'button', name: 'Send message' }), /Sent/);
+    if (modern) {
+      // Asking mid-call is a 2025 mechanism. On 2026-07-28 the server must refuse, never go ahead without an answer.
+      await fails('web_click', { site, role: 'button', name: 'Send message' }, /can't ask/);
+    } else {
+      answer = 'decline';
+      await fails('web_click', { site, role: 'button', name: 'Send message' }, /said no/);
+      answer = 'accept';
+      assert.match(await call('web_click', { site, role: 'button', name: 'Send message' }), /Sent/);
+    }
     settings({});
     await fails('web_open', { site, url: 'https://example.org/' }, /outside the domains allowed/);
     // Read-only goes by what an element does: links open pages, POST forms change things whatever the label.

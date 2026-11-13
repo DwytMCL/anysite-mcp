@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Experimental: `ANYSITE_PROTOCOL=2026-07-28` also accepts clients that speak MCP revision 2026-07-28. The default is unchanged (2025-11-25). On the new revision, a site in `confirm` mode refuses actions instead of asking.
 - With `ANYSITE_HEADLESS=1`, the Chrome the server started is now closed when the server exits (client closed, Ctrl-C or kill), instead of being left running. A visible window, or a Chrome that was already open, is left alone.
 - When Chrome fails to start, the error now says why (its own message, or an exit code) instead of waiting 20 seconds and saying only "Could not start Chrome". A missing sandbox gets a short explanation with the fix (the AppArmor setting, or `ANYSITE_CHROME_ARGS=--no-sandbox` as root).
 - A Chrome that crashes or is closed is now noticed straight away, and the next call starts a fresh one instead of failing on a dead page.
