@@ -25,10 +25,14 @@ Tool descriptions are not part of the contract; the wording may improve.
 
 Commands and flags: `anysite-mcp [site ...]`, `login <site>`, `record <site> <name>`,
 `add <site>[/<name>] [--from <file or URL>] [--force]`, `library search <words>`, `library list [site]`,
-`library info <site>[/<name>]`, `library check`, `doctor [site ...]`,
+`library info <site>[/<name>]`, `library check`, `doctor [site ...] [--json]`,
 `permissions <site> [--read-only | --read-write] [--confirm | --no-confirm] [--allow <domain,...> | --allow-any | --allow-default]`,
-`--version`, `--help`. The exit code is 0 on success and 1 on an error. The wording of messages is not part of the
+`--version`, `--help`. The exit code is 0 on success and 1 on an error (for `doctor`, also when a shortcut is broken). The wording of messages is not part of the
 contract.
+
+The output of `doctor --json` is part of the contract: `{ checked, sites: [{ site, shortcuts: [{ name, status, detail }] }] }`,
+where `status` is `ok`, `repaired` or `broken`. New fields may be added; these will not change or go away. `detail` is
+for people, and its wording is not part of the contract.
 
 ## Environment variables
 

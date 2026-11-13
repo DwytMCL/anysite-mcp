@@ -34,7 +34,7 @@ test('--help and -h list every command and flag', () => {
     const { code, out } = run(f);
     assert.equal(code, 0);
     for (const w of ['login <site>', 'record <site> <name>', 'add <site>', '--from', '--force', 'library search', 'library list',
-      'library info', 'library check', 'doctor', 'permissions <site>', '--read-only', '--read-write', '--confirm', '--no-confirm', '--allow <domain',
+      'library info', 'library check', 'doctor', '--json', 'permissions <site>', '--read-only', '--read-write', '--confirm', '--no-confirm', '--allow <domain',
       '--allow-any', '--allow-default', '--version', 'ANYSITE_HOME', 'ANYSITE_CHROME', 'ANYSITE_CHROME_ARGS', 'ANYSITE_HEADLESS',
       'ANYSITE_DOWNLOADS', 'ANYSITE_LIBRARY']) assert.ok(out.includes(w), `help mentions ${w}`);
   }
@@ -104,4 +104,18 @@ test('library check compares saved shortcuts with the library and changes nothin
   assert.match(r.stdout, /1 differ, 1 not compared/);
   assert.equal(readFileSync(file, 'utf8'), old);
   rmSync(h, { recursive: true, force: true });
+});
+
+test('doctor --json prints the report shape and nothing else, and checks nothing when there are no shortcuts', async () => {
+  const { findChrome } = await import('../lib/browser.js');
+  const { doctorReport } = await import('../lib/shortcuts.js');
+  assert.deepEqual(doctorReport([{ site: 'a.com', results: [{ name: 'x', status: 'ok', detail: '', extra: 1 }, { name: 'y', status: 'broken', detail: 'gone' }] }]),
+    { checked: 2, sites: [{ site: 'a.com', shortcuts: [{ name: 'x', status: 'ok', detail: '' }, { name: 'y', status: 'broken', detail: 'gone' }] }] });
+  if (!findChrome()) return;
+  const empty = mkdtempSync(join(tmpdir(), 'anysite-doctor-'));
+  try {
+    const r = spawnSync(process.execPath, [server, 'doctor', '--json'], { encoding: 'utf8', timeout: 30000, env: { ...process.env, ANYSITE_HOME: empty } });
+    assert.equal(r.status, 0);
+    assert.deepEqual(JSON.parse(r.stdout), { checked: 0, sites: [] });
+  } finally { rmSync(empty, { recursive: true, force: true }); }
 });
