@@ -268,10 +268,18 @@ try {
   });
   console.log('all ok');
 } finally {
+  const port = readFileSync(join(home, 'profiles/localhost/DevToolsActivePort'), 'utf8').split('\n')[0];
   await c.close();
   http.close();
-  const port = readFileSync(join(home, 'profiles/localhost/DevToolsActivePort'), 'utf8').split('\n')[0];
-  const b = await chromium.connectOverCDP(`http://127.0.0.1:${port}`);
-  await (await b.newBrowserCDPSession()).send('Browser.close').catch(() => {});
+  // The server started this headless Chrome, so it must be gone once the server has exited.
+  let left;
+  for (let i = 0; i < 40; i++) {
+    left = await chromium.connectOverCDP(`http://127.0.0.1:${port}`).catch(() => undefined);
+    if (!left) break;
+    await new Promise(r => setTimeout(r, 250));
+  }
+  if (left) await (await left.newBrowserCDPSession()).send('Browser.close').catch(() => {});
+  assert(!left, 'Chrome was still running after the server exited');
+  console.log('ok chrome closed with the server');
   setTimeout(() => rmSync(home, { recursive: true, force: true }), 2000);
 }
