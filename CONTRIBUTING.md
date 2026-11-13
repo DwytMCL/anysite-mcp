@@ -57,6 +57,17 @@ Every pull request to `main` needs one approving review from a code owner (`@Dwy
 - **Stale approvals are dismissed:** a new push, such as Dependabot rebasing a PR, dismisses an earlier approval, so
   approve it again.
 
+## The nightly live-site check
+
+`.github/workflows/nightly.yml` runs `scripts/library-health.js` against the live sites every night. It keeps the last 14
+nights in the `health-history` artifact, and opens one issue (label `nightly-health`) once a shortcut has been broken two
+nights in a row. It updates that issue while the shortcut stays broken and closes it when nothing is broken. A night where
+a site blocked the runner (403, 429, a challenge page) is reported as "couldn't check" and counts as neither.
+
+GitHub turns off scheduled workflows after 60 days without repository activity, with no warning. If the repository has
+been quiet, open Actions → Nightly live-site check and turn it back on, and check that it has run in the last two days
+before a release.
+
 ## Releasing
 
 Changes go under `## Unreleased` in CHANGELOG.md as they land. A release is prepare → merge → tag:
