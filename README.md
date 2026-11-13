@@ -15,7 +15,6 @@
 [![Install in VS Code](https://img.shields.io/badge/VS_Code-Install-0098FF?style=for-the-badge&logo=visualstudiocode)](https://insiders.vscode.dev/redirect/mcp/install?name=anysite&config=%7B%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22anysite-mcp%22%5D%7D)
 [![Shortcut Library](https://img.shields.io/badge/Shortcut_Library-Browse-f97316?style=for-the-badge)](https://dwytmcl.github.io/anysite-mcp/)
 
-[![anysite MCP server](https://mcprush.com/badge/anysite-mcp/card.svg?theme=light)](https://mcprush.com/to/anysite-mcp?ref=badge)
 <br>
 
 <img src="docs/demo.gif" alt="Claude looks something up on Wikipedia, saves the steps as a shortcut, and reuses it as a new tool" width="820">
