@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Gemini: `gemini_list_chats` (and opening a chat by title) no longer times out when the sidebar is collapsed, and says so when no chats are found, for example when signed out.
+- Gemini: progress updates now arrive every 5 seconds of real time, including while the prompt is sent, and formulas come back as TeX (`$O(1)$`) instead of split across lines. A reply no longer ends on a lead-in line whose follow-up buttons were removed.
+- NotebookLM: `notebooklm_add_source` opens a collapsed Sources tab first, and `notebooklm_ask` answers no longer include the "Thoughts" label, "Save to note" and suggestion buttons, with citation numbers kept as `[1]`.
 - Experimental: `ANYSITE_PROTOCOL=2026-07-28` also accepts clients that speak MCP revision 2026-07-28. The default is unchanged (2025-11-25). On the new revision, a site in `confirm` mode refuses actions instead of asking.
 - New `anysite-mcp doctor --json` prints the results as JSON (`{ checked, sites: [{ site, shortcuts: [{ name, status, detail }] }] }`), for scripts and CI. The exit code is the same as before.
 - With `ANYSITE_HEADLESS=1`, the Chrome the server started is now closed when the server exits (client closed, Ctrl-C or kill), instead of being left running. A visible window, or a Chrome that was already open, is left alone.
