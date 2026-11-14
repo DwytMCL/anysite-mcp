@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.0
 
 - Gemini: `gemini_list_chats` (and opening a chat by title) no longer times out when the sidebar is collapsed, and says so when no chats are found, for example when signed out.
 - Gemini: progress updates now arrive every 5 seconds of real time, including while the prompt is sent, and formulas come back as TeX (`$O(1)$`) instead of split across lines. A reply no longer ends on a lead-in line whose follow-up buttons were removed.
