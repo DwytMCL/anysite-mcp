@@ -1,5 +1,19 @@
 // NotebookLM (now also called Gemini Notebook). Shortcut tools for common jobs; they match elements by
 // loose role/name patterns, so small wording changes still work, and when they fail the web_* tools still can.
+// Page clutter in an answer: the "Thoughts" label, citation numbers on lines of their own, and everything from
+// "Save to note" on (that button and the suggestion chips after it).
+export function tidyAnswer(lines) {
+  const end = lines.findIndex(l => /^save to note$/i.test(l));
+  const out = [];
+  for (const l of end < 0 ? lines : lines.slice(0, end)) {
+    if (/^thoughts$/i.test(l)) continue;
+    if (out.length && /^\d{1,3}$/.test(l)) out[out.length - 1] += `[${l}]`;
+    else if (out.length && /^[.,;:]$/.test(l)) out[out.length - 1] += l;
+    else out.push(l);
+  }
+  return out;
+}
+
 export default ({ z, kit }) => {
   const HOME_URL = 'https://notebooklm.google.com/';
   const NOTEBOOK_LINK = 'a[href*="/notebook/"]';
@@ -99,7 +113,7 @@ export default ({ z, kit }) => {
           const seen = new Set(before.split('\n').map(s => s.trim()).filter(Boolean));
           const lines = last.split('\n').map(s => s.trim()).filter(s => s && !icon.test(s));
           const cut = lines.findIndex((_, i) => i + 2 < lines.length && [0, 1, 2].every(k => seen.has(lines[i + k])));
-          const reply = (cut < 0 ? lines : lines.slice(0, cut)).join('\n');
+          const reply = tidyAnswer(cut < 0 ? lines : lines.slice(0, cut)).join('\n');
           if (!(changed && stableFor >= 5000)) return `Still answering after ${timeout_seconds}s. Partial answer:\n${reply}`;
           return reply;
         },
@@ -116,8 +130,14 @@ export default ({ z, kit }) => {
           const openAdder = async () => {
             // A new notebook opens the dialog by itself; otherwise click "Add source".
             if (!await p.getByRole('dialog').last().getByRole('button', { name: /website|copied text|upload/i }).first()
-              .isVisible().catch(() => false))
-              await p.getByRole('button', { name: /add sources?/i }).first().click();
+              .isVisible().catch(() => false)) {
+              const add = p.getByRole('button', { name: /add sources?/i }).first();
+              // The Sources panel can be a collapsed tab, which hides the button.
+              if (!await add.isVisible().catch(() => false))
+                await p.getByRole('tab', { name: /sources/i }).or(p.getByRole('button', { name: /^sources$/i })).first()
+                  .click({ timeout: 3000 }).catch(() => {});
+              await add.click();
+            }
             return p.getByRole('dialog').last();
           };
           const insert = async (kind, field, value) => {

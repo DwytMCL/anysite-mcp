@@ -1,4 +1,8 @@
 // Gemini web app (gemini.google.com). gemini_ask covers most jobs; anything else goes through the web_* tools.
+
+// A reply that ends on a lead-in ("To explore this:") only had follow-up suggestion buttons after it; drop the line.
+export const dropLeadIn = (text, hadButtons) => hadButtons ? text.replace(/\n+[^\n]*:\s*$/, '') : text;
+
 export default ({ z, kit }) => {
   const HOME_URL = 'https://gemini.google.com/app';
   const CHAT_LINK = 'a[href*="/app/"]';
@@ -6,8 +10,15 @@ export default ({ z, kit }) => {
 
   async function chatLinks(p) {
     if (!p.url().startsWith('https://gemini.google.com/')) await p.goto(HOME_URL);
-    await p.locator(CHAT_LINK).first().waitFor({ timeout: 20000 });
-    return p.locator(CHAT_LINK).evaluateAll(as => as.map(a => ({ title: a.innerText.replace(/\s+/g, ' ').trim(), url: a.href })));
+    // Attached, not visible: a collapsed sidebar hides the links. If there are none at all, open the sidebar.
+    const first = p.locator(CHAT_LINK).first();
+    const there = () => first.waitFor({ state: 'attached', timeout: 5000 }).then(() => true, () => false);
+    if (!await there()) {
+      await p.getByRole('button', { name: /main menu/i }).first().click({ timeout: 3000 }).catch(() => {});
+      if (!await first.waitFor({ state: 'attached', timeout: 15000 }).then(() => true, () => false))
+        throw new Error('No chats found. If Gemini asks you to sign in, run web_login for gemini first; otherwise use web_snapshot to see the page.');
+    }
+    return p.locator(CHAT_LINK).evaluateAll(as => as.map(a => ({ title: (a.innerText || a.textContent).replace(/\s+/g, ' ').trim(), url: a.href })));
   }
 
   // chat: a chat URL, its id, or (part of) its title.
@@ -27,6 +38,12 @@ export default ({ z, kit }) => {
   // The copy is laid out off-screen because innerText needs layout to keep line breaks.
   const replyText = loc => loc.evaluate(el => {
     const c = el.cloneNode(true);
+    // Formulas: keep the TeX source instead of the several rendered copies Gemini lays out.
+    c.querySelectorAll('[data-math], .katex').forEach(m => {
+      const tex = m.getAttribute('data-math') || m.querySelector('annotation[encoding="application/x-tex"]')?.textContent;
+      if (tex) m.replaceWith('$' + tex.trim() + '$');
+    });
+    const hadButtons = !!c.querySelector('button');
     c.querySelectorAll('button, mat-icon, [aria-hidden="true"]').forEach(e => e.remove());
     c.querySelectorAll('li').forEach(li => li.prepend(li.parentElement.tagName === 'OL'
       ? `${[...li.parentElement.children].indexOf(li) + 1}. ` : '- '));
@@ -37,8 +54,8 @@ export default ({ z, kit }) => {
     // List items wrap their text in paragraphs, which puts it on the line after the bullet.
     const t = c.innerText.replace(/^(- |\d+\. )\s*\n+/gm, '$1').replace(/\n{3,}/g, '\n\n').trim();
     c.remove();
-    return t;
-  });
+    return { t, hadButtons };
+  }).then(({ t, hadButtons }) => dropLeadIn(t, hadButtons));
 
   // Open a menu with `opener` and click the item whose name matches `want`; on a miss, list the items.
   async function pickMenuItem(p, opener, role, want) {
@@ -99,15 +116,18 @@ export default ({ z, kit }) => {
             if (ok) break;
             if (tries === 20) throw new Error('The prompt was not accepted. Use web_snapshot to see why.');
           }
+          progress?.(0, timeout_seconds, 'Prompt sent, waiting for Gemini');
           const stop = p.getByRole('button', { name: /stop (response|generating)/i });
           const reply = p.locator('xpath=(//user-query)[last()]/following::model-response[1]');
           let last = '', stableFor = 0, done = false;
           const began = Date.now();
-          for (let i = 1, end = began + timeout_seconds * 1000; Date.now() < end && !done; i++) {
+          let noted = began;
+          for (const end = began + timeout_seconds * 1000; Date.now() < end && !done;) {
             await kit.sleep(1000);
             const secs = Math.round((Date.now() - began) / 1000);
-            if (i % 5 === 0) progress?.(Math.min(secs, timeout_seconds), timeout_seconds, `Waiting for Gemini's reply (${secs} s)`);
-            const now = await reply.locator('message-content').first().innerText().catch(() => '');
+            if (Date.now() - noted >= 5000) { noted = Date.now(); progress?.(Math.min(secs, timeout_seconds), timeout_seconds, `Waiting for Gemini's reply (${secs} s)`); }
+            // Short timeout: before the reply starts there is nothing to read, and the default wait is 30 s.
+            const now = await reply.locator('message-content').first().innerText({ timeout: 1000 }).catch(() => '');
             const imgs = await reply.locator('img[src^="http"], img[src^="blob:"]').count().catch(() => 0);
             stableFor = now === last ? stableFor + 1000 : 0;
             last = now;
