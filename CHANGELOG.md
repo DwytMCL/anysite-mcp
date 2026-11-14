@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Fixed: the 180 second tool limit cut off `gemini_ask` and `notebooklm_ask` answers that took longer, whatever `timeout_seconds` said. A tool with its own `timeout_seconds` now gets that time plus 30 seconds when it is longer than `ANYSITE_TOOL_TIMEOUT`.
+
 ## 0.8.0
 
 - Gemini: `gemini_list_chats` (and opening a chat by title) no longer times out when the sidebar is collapsed, and says so when no chats are found, for example when signed out.

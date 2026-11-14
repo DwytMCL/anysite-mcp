@@ -166,3 +166,17 @@ test('withTimeout: a call that hangs returns an error naming the tool; a quick o
   assert.equal(await withTimeout(1000, 'x', Promise.resolve(5)), 5);
   assert.equal(await withTimeout(0, 'x', Promise.resolve(6)), 6);
 });
+
+test('limitFor: a tool\'s own timeout_seconds raises the limit, never lowers it; 0 means none', async () => {
+  const { limitFor, withTimeout } = await import('../lib/tools.js');
+  const shape = { timeout_seconds: z.number().optional() };
+  assert.equal(limitFor({ timeout_seconds: 400 }, shape, 180000), 430000);
+  assert.equal(limitFor({ timeout_seconds: 10 }, shape, 180000), 180000);
+  assert.equal(limitFor({}, shape, 180000), 330000);
+  assert.equal(limitFor({ timeout_seconds: 400 }, { q: z.string() }, 180000), 180000);
+  assert.equal(limitFor({ timeout_seconds: 400 }, shape, 0), 0);
+  // 400 s under a 180 s ceiling keeps running past the ceiling; without it the call is cut at the ceiling
+  const slow = ms => new Promise(r => setTimeout(() => r('done'), ms));
+  assert.equal(await withTimeout(limitFor({ timeout_seconds: 0.4 }, shape, 180), 'x', slow(200)), 'done');
+  await assert.rejects(withTimeout(limitFor({}, { q: z.string() }, 100), 'x', slow(300)), /did not finish/);
+});
